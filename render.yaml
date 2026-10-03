@@ -1,0 +1,12 @@
+# Конфиг для Render Blueprint (New → Blueprint → этот репозиторий).
+# Поднимает браузерную игру (solo-режим). Для Telegram-бота создайте
+# Web Service вручную со Start Command «python bot.py» и секретом BOT_TOKEN.
+services:
+  - type: web
+    name: civil-web
+    runtime: python
+    plan: free
+    startCommand: python solo.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.2"

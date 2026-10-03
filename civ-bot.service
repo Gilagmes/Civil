@@ -1,0 +1,15 @@
+# Вариант без Docker: systemd-служба. Инструкция — в DEPLOY.md
+[Unit]
+Description=Civilization Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/civ_bot
+EnvironmentFile=/opt/civ_bot/.env
+ExecStart=/opt/civ_bot/venv/bin/python bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

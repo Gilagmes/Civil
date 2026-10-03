@@ -1,0 +1,9 @@
+services:
+  civ-bot:
+    build: .
+    restart: unless-stopped      # сам поднимется после сбоя или перезагрузки сервера
+    env_file: .env               # BOT_TOKEN и TURN_HOURS берутся отсюда
+    environment:
+      DB_PATH: /data/civ.db
+    volumes:
+      - ./data:/data             # база игр хранится в папке data
