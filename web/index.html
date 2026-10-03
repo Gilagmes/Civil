@@ -1,0 +1,1090 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Цивилизация</title>
+<style>
+:root{--bg:#0b1219;--panel:rgba(14,26,38,.95);--line:#2e4256;--gold:#d8b45a;--txt:#eae6da}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+ font:14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
+ -webkit-user-select:none;user-select:none}
+#top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:5px;
+ padding:6px 8px;background:linear-gradient(rgba(19,34,48,.96),rgba(13,24,36,.94));
+ border-bottom:1px solid var(--line);flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:4px;background:#0d1826;border:1px solid var(--line);
+ border-radius:8px;padding:4px 7px;font-size:13px;white-space:nowrap;cursor:pointer}
+.chip .inc{color:#8fd18f;font-size:11px}
+.chip .warn{color:#e9c46a}
+.chip.res{cursor:default}
+.spacer{flex:1}
+.tbtn{background:#17334a;border:1px solid #35566f;color:var(--txt);border-radius:8px;
+ padding:4px 9px;font-size:14px;cursor:pointer}
+.tbtn:active{background:#1d405c}
+#turn{font-weight:700;color:var(--gold);letter-spacing:.5px;font-size:13px;padding:4px 2px}
+canvas{display:block;touch-action:none;position:fixed;inset:0}
+#end{position:fixed;right:10px;bottom:14px;z-index:6;border:1px solid #8a6d2f;border-radius:14px;
+ background:linear-gradient(#e7c874,#c9a244);color:#241a05;font-weight:800;font-size:15px;
+ padding:14px 18px;cursor:pointer;box-shadow:0 4px 14px #0008;letter-spacing:.4px}
+#end.wait{background:linear-gradient(#5a6a7a,#46586a);color:#dfe7ee;border-color:#39495a}
+#end:active{filter:brightness(1.12)}
+#ub{position:fixed;left:8px;bottom:10px;z-index:5;max-width:calc(100vw - 118px);
+ background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px 10px;
+ display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 4px 14px #0007}
+#ub .portrait{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;
+ justify-content:center;font-size:20px;border:2px solid #000;flex:none}
+#ub .info{display:flex;flex-direction:column;gap:2px;min-width:70px}
+#ub .info b{font-size:13px}
+.hp{width:64px;height:5px;background:#0a1420;border-radius:3px;overflow:hidden}
+.hp i{display:block;height:100%;background:#79c476}
+.abtn{background:#1b3a52;border:1px solid #3c5c78;border-radius:9px;color:var(--txt);
+ padding:7px 10px;font-size:13px;cursor:pointer}
+.abtn:active{background:#275073}
+.abtn.gold{background:linear-gradient(#e7c874,#c9a244);color:#241a05;border-color:#8a6d2f;font-weight:700}
+.abtn.red{background:#5a1e24;border-color:#8a3a42}
+.abtn.gray{background:#2a3644;border-color:#3c4c5e}
+#zoomer{position:fixed;right:10px;top:50%;transform:translateY(-50%);z-index:4;display:flex;
+ flex-direction:column;gap:6px}
+#zoomer button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+ background:var(--panel);color:var(--txt);font-size:17px;cursor:pointer}
+#mm{position:fixed;right:10px;bottom:80px;z-index:4;border:1px solid var(--line);border-radius:8px;
+ background:#0a0f15;opacity:.94;touch-action:none}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--panel);
+ border-top:2px solid var(--gold);border-radius:18px 18px 0 0;max-height:74%;overflow:auto;
+ transform:translateY(105%);transition:transform .22s ease;padding-bottom:14px}
+#sheet.open{transform:none}
+#sheet h2{margin:12px 14px 6px;font-size:16px;color:var(--gold);display:flex;align-items:center;gap:8px}
+#sheet h3{margin:12px 14px 4px;font-size:13px;color:#9fb4c8;text-transform:uppercase;letter-spacing:1px}
+#sheet .row{display:flex;align-items:center;gap:8px;margin:6px 14px;flex-wrap:wrap}
+#sheet .line{margin:5px 14px;font-size:13px}
+#sheet .grow{flex:1}
+.x{margin-left:auto;background:none;border:none;color:#8fa2b5;font-size:20px;cursor:pointer;padding:2px 8px}
+.pb{height:7px;background:#0a1420;border-radius:4px;overflow:hidden;flex:1;min-width:60px}
+.pb i{display:block;height:100%;background:var(--gold)}
+.tag{background:#0d1826;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:12px}
+.dim{color:#8fa2b5}
+.grid{display:flex;gap:6px;flex-wrap:wrap;margin:6px 14px}
+#banner{position:fixed;top:38%;left:0;right:0;text-align:center;z-index:15;pointer-events:none;
+ font-size:44px;font-weight:900;letter-spacing:6px;color:var(--gold);text-shadow:0 2px 14px #000;
+ opacity:0;transition:opacity .5s}
+#banner.show{opacity:1}
+#toast{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:20;background:#132c40ee;
+ border:1px solid #3c5c78;border-radius:10px;padding:8px 14px;font-size:13px;max-width:86%;
+ text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
+#tip{position:fixed;z-index:8;background:#0e1c2af0;border:1px solid var(--line);border-radius:8px;
+ padding:4px 8px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;max-width:220px}
+#tip.show{opacity:1}
+#veil{position:fixed;inset:0;z-index:30;background:#000c;display:flex;align-items:center;justify-content:center}
+#veil>div{background:var(--panel);border:2px solid var(--gold);border-radius:18px;padding:26px 30px;
+ text-align:center;max-width:82%}
+#veil h1{margin:0 0 8px;color:var(--gold)}
+#start{position:fixed;inset:0;z-index:25;background:radial-gradient(#152838,#0b1219);
+ display:flex;align-items:center;justify-content:center}
+#start>div{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px;
+ width:min(92vw,380px);text-align:center}
+#start h1{color:var(--gold);margin:0 0 4px;font-size:26px}
+#start input,#start select{width:100%;margin:6px 0;padding:10px;border-radius:10px;border:1px solid var(--line);
+ background:#0d1826;color:var(--txt);font-size:15px}
+#start label{font-size:12px;color:#9fb4c8}
+.hidden{display:none!important}
+</style></head><body>
+<div id="top"></div>
+<canvas id="c"></canvas>
+<canvas id="mm" width="140" height="100"></canvas>
+<div id="zoomer"><button id="zin">+</button><button id="zout">−</button><button id="home">🏛</button><button id="nextu" title="Следующий юнит">➡️</button></div>
+<div id="ub"></div>
+<button id="end"></button>
+<div id="banner"></div>
+<div id="sheet"><div id="sheet-in"></div></div>
+<div id="toast"></div>
+<div id="tip"></div>
+<div id="veil" class="hidden"><div id="veil-in"></div></div>
+<div id="start" class="hidden"><div>
+ <h1>🏛 Цивилизация</h1>
+ <p class="dim" id="s-sub" style="margin:4px 0 12px">Одиночная игра против ИИ — как в Civilization</p>
+ <label>Ваше имя</label><input id="s-name" maxlength="24" placeholder="Вы">
+ <label>Соперников (ИИ)</label>
+ <select id="s-ais"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+ <label>Сложность</label>
+ <select id="s-diff"><option value="easy">Лёгкий</option><option value="normal" selected>Обычный</option><option value="hard">Трудный</option></select>
+ <button class="abtn gold" id="s-go" style="width:100%;padding:13px;font-size:16px;margin-top:10px">⚔️ Начать игру</button>
+</div></div>
+<script>
+"use strict";
+const $=i=>document.getElementById(i);
+const TG=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)?window.Telegram.WebApp:null;
+if(TG){try{TG.ready();TG.expand();}catch(e){}}
+const SOLO=!TG;
+const CHAT=TG&&TG.initDataUnsafe?TG.initDataUnsafe.start_param:null;
+
+let META=null,S=null,sel=null,msg="";
+let cam={x:40,y:60,z:46};
+let reach=new Map(),attacks=new Map(),rangedT=new Map(),jobTiles=new Map();
+const unitAnim=new Map();
+const cv=$("c"),g=cv.getContext("2d");
+const mm=$("mm"),mg=mm.getContext("2d");
+
+const ICON={settler:"🧳",worker:"🔨",scout:"🔭",warrior:"🗡️",archer:"🏹",horseman:"🐎",
+ swordsman:"⚔️",catapult:"💣",missionary:"📿",galley:"⛵",knight:"🏇",crossbowman:"🎯"};
+const PL=["#e63946","#457b9d","#2a9d8f","#e9c46a","#9b5de5","#f4a261"];
+const TCOL={plains:"#9cb456",forest:"#5e8c44",hills:"#a98467",water:"#3d7fbe"};
+
+/* ---------- сеть ---------- */
+async function api(path,opt){
+ opt=opt||{};
+ const h={"Content-Type":"application/json"};
+ if(TG)h["X-Init-Data"]=TG.initData;
+ const r=await fetch(path,Object.assign({},opt,{headers:h}));
+ let j={};try{j=await r.json();}catch(e){}
+ if(!r.ok)throw new Error(j.error||r.statusText);
+ return j;
+}
+const stateUrl=()=> "/api/state"+(TG?"?chat="+encodeURIComponent(CHAT):"");
+async function refresh(center){
+ try{S=await api(stateUrl());}
+ catch(e){
+  if(SOLO&&/не создана/i.test(e.message)){showStart();return;}
+  msg="⚠️ "+e.message;render();return;
+ }
+ if(center)centerOnMe();
+ afterState();render();
+}
+async function act(action,extra){
+ try{
+  const body=Object.assign({chat:CHAT,action:action},extra||{});
+  const r=await api("/api/act",{method:"POST",body:JSON.stringify(body)});
+  S=r.state;if(r.msg)toast(r.msg);
+  if(TG&&TG.HapticFeedback)TG.HapticFeedback.impactOccurred("light");
+ }catch(e){
+  toast("⚠️ "+e.message);
+  if(TG&&TG.HapticFeedback)TG.HapticFeedback.notificationOccurred("error");
+ }
+ if(sel&&sel.kind==="unit"&&!unitById(sel.id))sel=null;
+ afterState();render();
+}
+
+/* ---------- помощники ---------- */
+const unitById=id=>S&&S.units.find(u=>u.id==id);
+const cityById=id=>S&&S.cities.find(c=>c.id==id);
+const pcol=o=>o==="barb"?"#4a4a4a":(S.players[o]?PL[S.players[o].color]:"#666");
+const rel=o=>o==="barb"?"war":(S.rel[o]||"peace");
+const distC=(a,b,c,d)=>Math.max(Math.abs(a-c),Math.abs(b-d));
+const promoLvl=u=>Math.min(3,Math.floor((u.xp||0)/6));
+const foodNeed=p=>6+p*3;
+function hsh(x,y){let h=(x*374761393+y*668265263)^0x5bf03635;h=Math.imul(h^(h>>>13),1274126177);return (h^(h>>>16))>>>0;}
+function toast(t){msg=t;const el=$("toast");el.textContent=t;el.classList.add("show");
+ clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove("show"),2600);}
+function centerOnMe(){
+ const c=S.cities.find(c=>c.owner===S.you&&c.capital)||S.cities.find(c=>c.owner===S.you)
+  ||S.units.find(u=>u.owner===S.you);
+ if(c)cam.x=innerWidth/2-(c.x+.5)*cam.z,cam.y=innerHeight/2-(c.y+.5)*cam.z;
+}
+function income(){
+ let gold=0,sci=0;
+ for(const c of S.cities)if(c.owner===S.you&&c.yields){gold+=c.yields[3];sci+=c.yields[2];}
+ return {gold:gold,sci:sci};
+}
+
+/* ---------- достижимость для выбранного юнита ---------- */
+function computeReach(){
+ reach=new Map();attacks=new Map();rangedT=new Map();jobTiles=new Map();
+ if(!S)return;
+ const u=sel&&sel.kind==="unit"?unitById(sel.id):null;
+ const active=!!(u&&u.owner===S.you&&u.mv>0&&!u.job);
+ const ut=u?META.units[u.type]:null;
+ if(u&&u.owner===S.you&&u.type==="worker")workerTiles(u,[ [u.x,u.y] ]);
+ if(!active)return;
+ const roads=new Set(S.roads);
+ const hasRoad=(x,y)=>roads.has(x+","+y)||S.cities.some(c=>c.x===x&&c.y===y);
+ const enemyAt=(x,y)=>{
+  if(S.cstates.some(c=>c.x===x&&c.y===y&&c.war))return true;
+  if(S.units.some(v=>v.x===x&&v.y===y&&v.owner!==S.you&&rel(v.owner)==="war"))return true;
+  const c=S.cities.find(c=>c.x===x&&c.y===y);
+  return !!(c&&c.owner!==S.you&&rel(c.owner)==="war");
+ };
+ // BFS по клеткам с бюджетом движения
+ const best=new Map(),par=new Map();
+ const k0=u.x+","+u.y;best.set(k0,0);
+ const q=[k0];
+ while(q.length){
+  q.sort((a,b)=>best.get(a)-best.get(b));
+  const k=q.shift(),[x,y]=k.split(",").map(Number),d=best.get(k);
+  for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+   const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=S.w||ny>=S.h)continue;
+   const nk=nx+","+ny,t=S.tiles[ny][nx];if(!t)continue;
+   let cost;
+   if(ut.naval){cost=t==="water"?1:99;}
+   else if(t==="water"){cost=99;}   // погрузка обрабатывается отдельно ниже
+   else cost=(hasRoad(x,y)&&hasRoad(nx,ny))?0.34:META.terrain[t].cost;
+   if(d+cost>u.mv+1e-9)continue;
+   // блокировки
+   const cs=S.cstates.find(c=>c.x===nx&&c.y===ny);
+   if(cs){if(cs.war){attacks.set(nk,(par.get(k)||[]).concat([[nx,ny]]));}continue;}
+   const others=S.units.filter(v=>v.x===nx&&v.y===ny&&v.owner!==S.you&&!v.aboard);
+   if(others.length){
+    if(others.every(v=>rel(v.owner)==="war"))attacks.set(nk,(par.get(k)||[]).concat([[nx,ny]]));
+    continue;
+   }
+   const ci=S.cities.find(c=>c.x===nx&&c.y===ny);
+   if(ci&&ci.owner!==S.you){if(rel(ci.owner)==="war")attacks.set(nk,(par.get(k)||[]).concat([[nx,ny]]));continue;}
+   const own=S.owners[nk];
+   if(own&&own!==S.you&&ut.att>0&&rel(own)!=="war")continue;   // чужая граница в мире
+   if(d+cost<(best.get(nk)??1e9)){best.set(nk,d+cost);par.set(nk,(par.get(k)||[]).concat([[nx,ny]]));q.push(nk);}
+  }
+ }
+ for(const[k,p]of par)reach.set(k,p);
+ // погрузка на свою галеру рядом
+ if(!ut.naval)for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+  const nx=u.x+dx,ny=u.y+dy;if(nx<0||ny<0||nx>=S.w||ny>=S.h)continue;
+  if(S.tiles[ny][nx]==="water"&&S.units.some(v=>v.owner===S.you&&v.type==="galley"&&v.x===nx&&v.y===ny))
+   reach.set(nx+","+ny,[[nx,ny]]);
+ }
+ // атаки из стартовой клетки и смежных с досягаемыми
+ const from=[ [u.x,u.y], ...[...reach.keys()].map(k=>k.split(",").map(Number)) ];
+ for(const[x,y]of from)for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+  const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=S.w||ny>=S.h)continue;
+  const nk=nx+","+ny;
+  if(enemyAt(nx,ny)&&!attacks.has(nk))
+   attacks.set(nk,(x===u.x&&y===u.y?[]:(reach.get(x+","+y)||[])).concat([[nx,ny]]));
+ }
+ // цели для дальнего боя
+ if(ut.range)for(let y=u.y-ut.range;y<=u.y+ut.range;y++)for(let x=u.x-ut.range;x<=u.x+ut.range;x++){
+  if(x<0||y<0||x>=S.w||y>=S.h||(x===u.x&&y===u.y))continue;
+  if(S.units.some(v=>v.x===x&&v.y===y&&v.owner!==S.you&&rel(v.owner)==="war"))rangedT.set(x+","+y,true);
+ }
+ if(u.type==="worker")
+  workerTiles(u,[...reach.keys()].map(k=>k.split(",").map(Number)));
+}
+function workerTiles(u,tiles){
+ const consider=(x,y)=>{
+  if(x<0||y<0||x>=S.w||y>=S.h)return;
+  const t=S.tiles[y][x];if(!t||t==="water")return;
+  const k=x+","+y;
+  if(S.impr[k]||S.cities.some(c=>c.x===x&&c.y===y))return;
+  const own=S.owners[k];if(own&&own!==S.you)return;
+  if(t==="plains"&&S.me.techs.includes("agriculture"))jobTiles.set(k,"farm");
+  else if(t==="hills"&&S.me.techs.includes("mining"))jobTiles.set(k,"mine");
+ };
+ for(const p of tiles)consider(p[0],p[1]);
+}
+let SET={anim:true,mm:true};
+try{SET=Object.assign(SET,JSON.parse(localStorage.getItem("civset")||"{}"));}catch(e){}
+function saveSet(){try{localStorage.setItem("civset",JSON.stringify(SET));}catch(e){}applySet();}
+function applySet(){mm.style.display=SET.mm?"":"none";}
+let lastTurn=0;
+function afterState(){
+ computeReach();topUI();ubUI();endUI();winUI();
+ if(S&&S.turn!==lastTurn){if(lastTurn)showBanner("ХОД "+S.turn);lastTurn=S.turn;}
+}
+function showBanner(t){const b=$("banner");b.textContent=t;b.classList.add("show");
+ clearTimeout(showBanner._t);showBanner._t=setTimeout(()=>b.classList.remove("show"),1300);}
+
+/* ---------- отрисовка ---------- */
+function emoji(e,x,y,s){g.font=s+"px serif";g.textAlign="center";g.textBaseline="middle";g.fillText(e,x,y);}
+if(typeof CanvasRenderingContext2D!=="undefined"&&!CanvasRenderingContext2D.prototype.roundRect){
+ CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h){this.rect(x,y,w,h);return this;};
+}
+function circle(x,y,r){g.beginPath();g.arc(x,y,r,0,7);g.fill();}
+function drawTile(t,px,py,z,x,y){
+ g.fillStyle=TCOL[t];g.fillRect(px,py,z-1,z-1);
+ const h=hsh(x,y);
+ if(t==="plains"){g.fillStyle="rgba(255,255,240,.14)";
+  for(let i=0;i<3;i++)g.fillRect(px+((h>>(i*5))%10)/10*z,py+((h>>(i*5+3))%10)/10*z,2,2);}
+ else if(t==="forest"){g.fillStyle="#3f6d2e";
+  for(let i=0;i<3;i++){const tx=px+z*(0.25+0.25*i),ty=py+z*(0.62-0.18*(i%2));
+   g.beginPath();g.moveTo(tx,ty-z*0.22);g.lineTo(tx-z*0.13,ty);g.lineTo(tx+z*0.13,ty);g.fill();}}
+ else if(t==="hills"){g.fillStyle="rgba(70,50,35,.5)";
+  g.beginPath();g.moveTo(px+z*0.3,py+z*0.68);g.lineTo(px+z*0.5,py+z*0.34);g.lineTo(px+z*0.7,py+z*0.68);g.fill();
+  g.fillStyle="rgba(255,255,255,.25)";g.beginPath();g.moveTo(px+z*0.44,py+z*0.44);
+  g.lineTo(px+z*0.5,py+z*0.34);g.lineTo(px+z*0.57,py+z*0.45);g.fill();}
+ else{g.strokeStyle="rgba(255,255,255,.22)";g.lineWidth=1;
+  for(let i=0;i<2;i++){const wy=py+z*(0.35+0.3*i),wx=px+z*(0.2+0.25*((h>>i)%2));
+   g.beginPath();g.arc(wx,wy,z*0.12,0,Math.PI);g.stroke();}}
+}
+function drawRoads(x,y,px,py,z){
+ const has=(nx,ny)=>S.roads.includes(nx+","+ny)||S.cities.some(c=>c.x===nx&&c.y===ny);
+ g.strokeStyle="#d9c58a";g.lineWidth=Math.max(2,z*0.12);g.lineCap="round";
+ const cx=px+z/2,cy=py+z/2;
+ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]])
+  if(has(x+dx,y+dy)){g.beginPath();g.moveTo(cx,cy);g.lineTo(cx+dx*z/2,cy+dy*z/2);g.stroke();}
+}
+function drawBorders(z){
+ const own=(x,y)=>S.owners[x+","+y];
+ g.lineWidth=Math.max(2,z*0.08);
+ for(const k in S.owners){
+  const[x,y]=k.split(",").map(Number),px=cam.x+x*z,py=cam.y+y*z;
+  const o=own(x,y);
+  if(own(x+1,y)!==o){g.strokeStyle=pcol(o);g.beginPath();g.moveTo(px+z-1,py);g.lineTo(px+z-1,py+z-1);g.stroke();}
+  if(own(x,y+1)!==o){g.strokeStyle=pcol(o);g.beginPath();g.moveTo(px,py+z-1);g.lineTo(px+z-1,py+z-1);g.stroke();}
+  if(own(x-1,y)===undefined&&own(x-1,y)!==o){g.strokeStyle=pcol(o);g.beginPath();g.moveTo(px,py);g.lineTo(px,py+z-1);g.stroke();}
+  if(own(x,y-1)===undefined&&own(x,y-1)!==o){g.strokeStyle=pcol(o);g.beginPath();g.moveTo(px,py);g.lineTo(px+z-1,py);g.stroke();}
+ }
+}
+function drawCity(c,z){
+ const px=cam.x+c.x*z,py=cam.y+c.y*z;
+ g.strokeStyle=pcol(c.owner);g.lineWidth=Math.max(2,z*0.08);
+ g.strokeRect(px+1.5,py+1.5,z-4,z-4);
+ g.fillStyle=pcol(c.owner);circle(px+z/2,py+z/2,z*0.3);
+ g.strokeStyle="#fff";g.lineWidth=1.5;g.beginPath();g.arc(px+z/2,py+z/2,z*0.3,0,7);g.stroke();
+ emoji("🏛",px+z/2,py+z/2+1,z*0.34);
+ g.fillStyle="#ffd60a";circle(px+z*0.82,py+z*0.18,z*0.17);
+ g.fillStyle="#241a05";g.font="700 "+Math.max(8,z*0.2)+"px system-ui";
+ g.textAlign="center";g.textBaseline="middle";g.fillText(c.pop,px+z*0.82,py+z*0.19);
+ if(c.capital)emoji("⭐",px+z*0.16,py+z*0.16,z*0.22);
+ if(sel&&sel.kind==="city"&&sel.id==c.id){g.strokeStyle="#ffd60a";g.lineWidth=3;
+  g.strokeRect(px+1,py+1,z-3,z-3);}
+ let label=c.name;
+ if(c.owner===S.you&&c.build){const[kk,key]=c.build.split(":");
+  label=(kk==="unit"?(ICON[key]||"🔨"):"")+" "+label;}
+ g.font="600 "+Math.max(9,z*0.2)+"px system-ui";
+ const w=g.measureText(label).width+10;
+ g.fillStyle="rgba(10,16,24,.85)";
+ g.beginPath();g.roundRect(px+z/2-w/2,py+z*0.98,w,Math.max(12,z*0.26),4);g.fill();
+ g.fillStyle="#fff";g.fillText(label,px+z/2,py+z*0.98+Math.max(12,z*0.26)/2);
+}
+function drawUnit(u,z){
+ const inCity=S.cities.some(c=>c.x===u.x&&c.y===u.y&&c.owner===u.owner);
+ const ap=unitAnim.get(u.id)||u;
+ const px=cam.x+(ap.x+(inCity?0.74:0.5))*z,py=cam.y+(ap.y+(inCity?0.26:0.5))*z,r=z*(inCity?0.2:0.3);
+ const isSel=sel&&sel.kind==="unit"&&sel.id==u.id;
+ if(isSel){g.strokeStyle="#ffd60a";g.lineWidth=3;g.beginPath();g.arc(px,py,r+3,0,7);g.stroke();}
+ g.fillStyle=pcol(u.owner);circle(px,py,r);
+ g.strokeStyle="#000";g.lineWidth=1.5;g.beginPath();g.arc(px,py,r,0,7);g.stroke();
+ emoji(ICON[u.type]||"?",px,py+1,r*1.2);
+ const w=z*0.56,hp=Math.max(0,u.hp)/10;
+ g.fillStyle="#0009";g.fillRect(px-w/2,py+r+2,w,3);
+ g.fillStyle=hp>0.6?"#79c476":hp>0.3?"#e9c46a":"#e63946";g.fillRect(px-w/2,py+r+2,w*hp,3);
+ if(u.fort)emoji("🛡",px-r*0.9,py-r*0.9,z*0.18);
+ if(u.job)emoji("🔨",px+r*0.9,py-r*0.9,z*0.18);
+ if(u.auto)emoji("🤖",px-r*0.9,py+r*0.9,z*0.18);
+ const lv=promoLvl(u);
+ if(lv){g.fillStyle="#ffd60a";g.font="700 "+Math.max(8,z*0.16)+"px system-ui";
+  g.textAlign="center";g.textBaseline="middle";g.fillText("★".repeat(lv),px,py-r-5);}
+ if(u.type==="galley"){const n=S.units.filter(v=>v.aboard==u.id).length;
+  if(n){g.fillStyle="#fff";g.font="700 "+z*0.18+"px system-ui";g.fillText(n,px+r*0.9,py-r*0.9);}}
+}
+function draw(){
+ const dpr=window.devicePixelRatio||1;
+ cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;
+ cv.style.width=innerWidth+"px";cv.style.height=innerHeight+"px";
+ g.setTransform(dpr,0,0,dpr,0,0);
+ g.fillStyle="#0b1219";g.fillRect(0,0,innerWidth,innerHeight);
+ if(!S||!META)return;
+ const z=cam.z;
+ const VIS=new Set(S.visible.map(p=>Array.isArray(p)?p[0]+","+p[1]:p));
+ for(let y=0;y<S.h;y++)for(let x=0;x<S.w;x++){
+  const px=cam.x+x*z,py=cam.y+y*z;
+  if(px+z<0||py+z<0||px>innerWidth||py>innerHeight)continue;
+  const t=S.tiles[y][x],k=x+","+y;
+  if(!t){g.fillStyle="#0a0f15";g.fillRect(px,py,z-1,z-1);continue;}
+  drawTile(t,px,py,z,x,y);
+  if(t==="water"){
+   const nb=[[1,0],[-1,0],[0,1],[0,-1]].filter(d=>{
+    const nx=x+d[0],ny=y+d[1];
+    return nx>=0&&ny>=0&&nx<S.w&&ny<S.h&&S.tiles[ny][nx]&&S.tiles[ny][nx]!=="water";});
+   if(nb.length){
+    g.fillStyle="rgba(220,245,255,.10)";g.fillRect(px,py,z-1,z-1);
+    g.strokeStyle="rgba(233,216,166,.4)";g.lineWidth=2;
+    for(const d of nb){g.beginPath();
+     if(d[0]===1){g.moveTo(px+z-1,py);g.lineTo(px+z-1,py+z-1);}
+     else if(d[0]===-1){g.moveTo(px,py);g.lineTo(px,py+z-1);}
+     else if(d[1]===1){g.moveTo(px,py+z-1);g.lineTo(px+z-1,py+z-1);}
+     else{g.moveTo(px,py);g.lineTo(px+z-1,py);}
+     g.stroke();}
+   }
+  }
+  if(S.roads.includes(k))drawRoads(x,y,px,py,z);
+  const im=S.impr[k];if(im)emoji(META.impr[im].emoji,px+z*0.5,py+z*0.66,z*0.38);
+  const rs=S.res[k];
+  if(rs){g.fillStyle="rgba(255,255,255,.8)";circle(px+z*0.2,py+z*0.22,z*0.15);
+   emoji(META.res[rs].emoji,px+z*0.2,py+z*0.22,z*0.22);}
+  const wn=S.nwonders&&S.nwonders[k];
+  if(wn){g.strokeStyle="rgba(255,220,120,.95)";g.lineWidth=2;
+   g.beginPath();g.moveTo(px+z/2,py+2);g.lineTo(px+z-3,py+z/2);g.lineTo(px+z/2,py+z-3);g.lineTo(px+3,py+z/2);
+   g.closePath();g.stroke();
+   emoji(META.nwonders[wn].emoji,px+z*0.5,py+z*0.5,z*0.5);}
+  if(S.huts.includes(k))emoji("🛖",px+z*0.5,py+z*0.5,z*0.45);
+  if(S.camps&&S.camps.includes(k))emoji("🏕️",px+z*0.5,py+z*0.5,z*0.45);
+  if(!VIS.has(k)){g.fillStyle="rgba(4,8,13,.55)";g.fillRect(px,py,z-1,z-1);}
+ }
+ drawBorders(z);
+ for(const k of reach.keys()){const[x,y]=k.split(",").map(Number);
+  g.fillStyle="rgba(255,255,255,.15)";g.fillRect(cam.x+x*z,cam.y+y*z,z-1,z-1);}
+ for(const k of attacks.keys()){const[x,y]=k.split(",").map(Number);
+  g.fillStyle="rgba(230,57,70,.3)";g.fillRect(cam.x+x*z,cam.y+y*z,z-1,z-1);}
+ g.strokeStyle="rgba(230,57,70,.8)";g.lineWidth=2;g.setLineDash([5,4]);
+ for(const k of rangedT.keys()){const[x,y]=k.split(",").map(Number);
+  g.strokeRect(cam.x+x*z+2,cam.y+y*z+2,z-5,z-5);}
+ g.strokeStyle="rgba(121,196,118,.9)";
+ for(const k of jobTiles.keys()){const[x,y]=k.split(",").map(Number);
+  g.strokeRect(cam.x+x*z+2,cam.y+y*z+2,z-5,z-5);}
+ g.setLineDash([]);
+ for(const c of S.cities)drawCity(c,z);
+ for(const u of S.units)if(!u.aboard)drawUnit(u,z);
+}
+function render(){draw();drawMM();}
+
+/* ---------- миникарта ---------- */
+function drawMM(){
+ if(!S||!META||!SET.mm)return;
+ const w=mm.width/S.w,h=mm.height/S.h;
+ mg.fillStyle="#0a0f15";mg.fillRect(0,0,mm.width,mm.height);
+ const VIS=new Set(S.visible.map(p=>Array.isArray(p)?p[0]+","+p[1]:p));
+ for(let y=0;y<S.h;y++)for(let x=0;x<S.w;x++){
+  const t=S.tiles[y][x];if(!t)continue;
+  mg.fillStyle=TCOL[t];
+  mg.globalAlpha=VIS.has(x+","+y)?1:0.45;
+  mg.fillRect(x*w,y*h,w+0.6,h+0.6);
+ }
+ mg.globalAlpha=1;
+ for(const k in S.owners){const[x,y]=k.split(",").map(Number);
+  mg.fillStyle=pcol(S.owners[k]);mg.fillRect(x*w+1,y*h+1,w-2,h-2);}
+ for(const c of S.cities){mg.fillStyle=pcol(c.owner);mg.fillRect(c.x*w-1,c.y*h-1,w+2,h+2);}
+ for(const u of S.units){
+  if(u.owner!==S.you&&!VIS.has(u.x+","+u.y))continue;
+  mg.fillStyle=u.owner==="barb"?"#111":pcol(u.owner);
+  mg.fillRect(u.x*w+w*0.25,u.y*h+h*0.25,w*0.5,h*0.5);
+ }
+ mg.strokeStyle="#fff";mg.lineWidth=1;
+ mg.strokeRect((-cam.x/cam.z)*w,(-cam.y/cam.z)*h,(innerWidth/cam.z)*w,(innerHeight/cam.z)*h);
+}
+function mmJump(e){
+ if(!S)return;
+ const r=mm.getBoundingClientRect();
+ const tx=((e.clientX-r.left)/r.width)*S.w,ty=((e.clientY-r.top)/r.height)*S.h;
+ cam.x=innerWidth/2-tx*cam.z;cam.y=innerHeight/2-ty*cam.z;
+ draw();drawMM();
+}
+let mmDown=false;
+mm.addEventListener("pointerdown",e=>{mmDown=true;mm.setPointerCapture&&mm.setPointerCapture(e.pointerId);mmJump(e);});
+mm.addEventListener("pointermove",e=>{if(mmDown)mmJump(e);});
+mm.addEventListener("pointerup",()=>mmDown=false);
+mm.addEventListener("pointercancel",()=>mmDown=false);
+
+/* ---------- анимация ---------- */
+let lastT=0;
+function loop(t){
+ const dt=Math.min(0.1,(t-lastT)/1000||0);lastT=t;
+ if(S){
+  const ids=new Set();
+  for(const u of S.units){
+   if(u.aboard){unitAnim.delete(u.id);continue;}
+   ids.add(u.id);
+   let a=unitAnim.get(u.id);
+   if(!a){a={x:u.x,y:u.y};unitAnim.set(u.id,a);}
+   if(SET.anim){
+    a.x+=(u.x-a.x)*Math.min(1,dt*9);a.y+=(u.y-a.y)*Math.min(1,dt*9);
+    if(Math.abs(a.x-u.x)<0.02)a.x=u.x;
+    if(Math.abs(a.y-u.y)<0.02)a.y=u.y;
+   }else{a.x=u.x;a.y=u.y;}
+  }
+  if(unitAnim.size>ids.size)for(const k of [...unitAnim.keys()])if(!ids.has(k))unitAnim.delete(k);
+ }
+ draw();drawMM();
+ requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------- верхняя панель ---------- */
+function topUI(){
+ const el=$("top");
+ if(!S||!META){el.innerHTML="<span class='dim'>Загрузка…</span>";return;}
+ const m=S.me,inc=income();
+ const r=m.research?META.techs[m.research]:null;
+ let html="<span id='turn'>ХОД "+S.turn+"</span>";
+ html+="<span class='chip res'>💰"+m.gold+"<span class='inc'>+"+inc.gold+"</span></span>";
+ html+="<span class='chip' data-cmd='open' data-a='{\"tech\":1}'>🔬+"+inc.sci+
+   (r?"<span class='dim'>&nbsp;"+r.name+"&nbsp;"+Math.floor(m.progress)+"/"+r.cost+"</span>":
+      "<span class='warn'>&nbsp;выберите!</span>")+"</span>";
+ html+="<span class='chip' data-cmd='open' data-a='{\"rel\":1}'>🕊"+m.faith+"</span>";
+ html+="<span class='chip res'>⭐"+m.score+"</span>";
+ if(S.hints&&S.hints.length)
+  html+="<span class='chip' data-cmd='open' data-a='{\"hints\":1}' style='border-color:#8a6d2f'>💡"+S.hints.length+"</span>";
+ const resTxt=Object.entries(m.res).filter(e=>e[1]>0)
+   .map(e=>META.res[e[0]].emoji+e[1]).join("");
+ if(resTxt)html+="<span class='chip res'>"+resTxt+"</span>";
+ html+="<span class='spacer'></span>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"units\":1}'>🪖</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"cities\":1}'>🏙</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"tech\":1}'>🔬</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"win\":1}'>🏆</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"diplo\":1}'>🤝</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"news\":1}'>📰"+(m.news.length?"•":"")+"</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"help\":1}'>❔</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"settings\":1}'>⚙</button>";
+ el.innerHTML=html;
+}
+
+/* ---------- нижняя панель юнита/города ---------- */
+function ubUI(){
+ const el=$("ub");
+ if(!S||!META){el.innerHTML="";return;}
+ const u=sel&&sel.kind==="unit"?unitById(sel.id):null;
+ const c=sel&&sel.kind==="city"?cityById(sel.id):null;
+ if(u){
+  const ut=META.units[u.type],t=S.tiles[u.y][u.x];
+  let html="<span class='portrait' style='background:"+pcol(u.owner)+"'>"+(ICON[u.type]||"?")+"</span>";
+  html+="<span class='info'><b>"+ut.name+"</b><span class='hp'><i style='width:"+(u.hp*10)+
+    "%;background:"+(u.hp>6?"#79c476":u.hp>3?"#e9c46a":"#e63946")+"'></i></span>"+
+    "<span class='dim'>❤"+u.hp+" ⚔"+ut.att+" 🛡"+ut.def+" 🦶"+u.mv+"/"+ut.moves+
+    (ut.range?" 🎯"+ut.range:"")+(promoLvl(u)?" "+"★".repeat(promoLvl(u)):"")+"</span></span>";
+  if(u.job)html+="<span class='tag'>🔨 осталось "+u.left+" х.</span>";
+  if(u.type==="settler")html+=btn("found",{unit:u.id},"🏛 Основать город","gold");
+  if(u.type==="worker"&&!u.job){
+   for(const k in META.impr){const im=META.impr[k];
+    if(im.on===t&&S.me.techs.includes(im.req)&&!S.impr[u.x+","+u.y]&&
+       !S.cities.some(c=>c.x===u.x&&c.y===u.y))
+     html+=btn("job",{unit:u.id,job:k},im.emoji+" "+im.name);
+   }
+   if(S.me.techs.includes("wheel")&&t!=="water"&&!S.roads.includes(u.x+","+u.y))
+    html+=btn("job",{unit:u.id,job:"road"},"🛤 Дорога");
+  }
+  if(u.type==="missionary")
+   for(const cc of S.cities)
+    if(distC(u.x,u.y,cc.x,cc.y)<=1&&cc.religion!==S.me.religion&&S.me.religion)
+     html+=btn("preach",{unit:u.id,city:cc.id},"📿 "+cc.name);
+  if(ut.def>0&&!u.fort)html+=btn("fortify",{unit:u.id},"🛡 Укрепиться");
+  const upTo=META.upgrades[u.type];
+  if(upTo){
+   const t=META.units[upTo],res=META.unit_res[upTo];
+   const price=Math.max(10,2*(t.cost-META.units[u.type].cost));
+   if((!t.req||S.me.techs.includes(t.req))&&(!res||S.me.res[res]>0)&&
+      S.owners[u.x+","+u.y]===S.you&&S.me.gold>=price)
+    html+=btn("upgrade",{unit:u.id},"⬆ "+t.name+" · "+price+"💰","gold");
+  }
+  if(u.type==="worker"||u.type==="scout")
+   html+=btn("auto",{unit:u.id},u.auto?"⏹ Автомат выкл":"🤖 Автомат");
+  if(ut.range)html+="<span class='dim'>🎯 тапни врага в радиусе</span>";
+  html+=btn("disband",{unit:u.id},"❌","red")+btn("desel",{},"✖","gray");
+  el.innerHTML=html;
+ }else if(c){
+  const b=c.build?METAItem(c.build):null;
+  let html="<span class='portrait' style='background:"+pcol(c.owner)+"'>🏛</span>";
+  html+="<span class='info'><b>"+(c.capital?"⭐":"")+c.name+"</b>"+
+   "<span class='dim'>нас. "+c.pop+" · ⚙"+c.yields[1]+"</span></span>";
+  if(b)html+="<span class='tag'>🔨 "+b.name+" "+c.prod+"/"+b.cost+"</span>";
+  html+=btn("open",{city:c.id},"🏙 Управление","gold");
+  if(!c.struck){
+   const tg2=S.units.filter(v=>v.owner!==S.you&&rel(v.owner)==="war"&&distC(c.x,c.y,v.x,v.y)<=2);
+   if(tg2.length)html+="<span class='dim'>🎯 обстрел в городе</span>";
+  }
+  html+=btn("desel",{},"✖","gray");
+  el.innerHTML=html;
+ }else{
+  el.innerHTML="<span class='dim'>Тапните свой юнит или город. Зажмите и тяните — карта, щипок — масштаб.</span>";
+ }
+}
+function METAItem(item){
+ const[k,key]=item.split(":");
+ return {unit:META.units,bld:META.blds,wnd:META.wonders}[k][key];
+}
+function btn(cmd,a,label,cls){
+ return "<button class='abtn"+(cls?" "+cls:"")+"' data-cmd='"+cmd+"' data-a='"+
+  JSON.stringify(a).replace(/'/g,"&#39;")+"'>"+label+"</button>";
+}
+function endUI(){
+ const el=$("end");
+ if(!S){el.textContent="";return;}
+ if(SOLO){el.textContent="ХОД ЗАВЕРШИТЬ";el.className="";el.disabled=false;return;}
+ if(S.me.ready){el.textContent="⏳ ЖДЁМ ДРУГИХ";el.className="wait";}
+ else{el.textContent="ХОД ЗАВЕРШИТЬ";el.className="";}
+}
+function winUI(){
+ const v=$("veil");
+ if(!S||!S.winner){v.classList.add("hidden");return;}
+ const wname=S.players[S.winner]?S.players[S.winner].name:"—";
+ const reasons={domination:"господство",science:"научная победа",score:"победа по очкам",religion:"религиозная победа"};
+ let html="<h1>🏆 "+wname+"</h1><p>"+(reasons[S.win_reason]||"")+"</p><p class='dim'>Ход "+S.turn+"</p>";
+ const rows=Object.entries(S.players).sort((a,b)=>b[1].score-a[1].score)
+  .map(e=>"<div class='line'>"+(e[0]===S.winner?"🏆 ":"")+e[1].name+(e[1].ai?" 🤖":"")+
+    " — ⭐"+e[1].score+(e[1].alive?"":" · 💀")+"</div>").join("");
+ html+=rows;
+ if(SOLO)html+="<p><button class='abtn gold' data-cmd='restart'>🔄 Новая игра</button></p>";
+ $("veil-in").innerHTML=html;
+ v.classList.remove("hidden");
+}
+
+/* ---------- экраны (sheet) ---------- */
+function openSheet(html){$("sheet-in").innerHTML=html;$("sheet").classList.add("open");$("sheet").scrollTop=0;}
+function closeSheet(){$("sheet").classList.remove("open");}
+function sheetTech(){
+ const m=S.me;let html="<h2>🔬 Технологии<button class='x' data-cmd='close'>×</button></h2>";
+ if(m.research){const t=META.techs[m.research];
+  html+="<div class='row'><span>Изучается: <b>"+t.name+"</b></span><span class='pb'><i style='width:"+
+   Math.min(100,100*m.progress/t.cost)+"%'></i></span><span class='dim'>"+Math.floor(m.progress)+"/"+t.cost+"</span></div>";}
+ else html+="<div class='line warn' style='color:#e9c46a'>Наука простаивает — выберите технологию!</div>";
+ html+="<h3>Доступно</h3>";
+ const av=Object.entries(META.techs).filter(e=>!m.techs.includes(e[0])&&e[1].req.every(r=>m.techs.includes(r)));
+ for(const[k,t]of av)
+  html+="<div class='row'><span class='grow'><b>"+t.name+"</b> <span class='dim'>"+t.cost+"🔬</span><br>"+
+   "<span class='dim'>"+t.unlocks+"</span></span>"+btn("research",{tech:k},"Изучить","gold")+"</div>";
+ if(!av.length)html+="<div class='line dim'>Всё изучено!</div>";
+ html+="<h3>Изучено ("+m.techs.length+"/"+Object.keys(META.techs).length+")</h3><div class='grid'>";
+ for(const k of m.techs)html+="<span class='tag'>"+META.techs[k].name+"</span>";
+ html+="</div><div class='line dim'>Изучите все технологии — научная победа.</div>";
+ openSheet(html);
+}
+function sheetCity(id){
+ const c=cityById(id);if(!c)return;
+ const[f,p,sci,gold]=c.yields,need=foodNeed(c.pop);
+ let html="<h2>"+(c.capital?"⭐":"")+c.name+" <span class='dim'>нас. "+c.pop+"</span>"+
+  "<button class='x' data-cmd='close'>×</button></h2>";
+ html+="<div class='row'><span class='tag'>🌾 "+f+"</span><span class='tag'>⚙️ "+p+"</span>"+
+  "<span class='tag'>🔬 "+sci+"</span><span class='tag'>💰 "+gold+"</span>"+
+  "<span class='tag'>🎭 "+c.culture+"</span><span class='tag'>🏠 "+c.housing+"</span></div>";
+ html+="<div class='row'><span class='dim'>Рост:</span><span class='pb'><i style='width:"+
+  Math.min(100,100*c.food/need)+"%'></i></span><span class='dim'>"+c.food+"/"+need+
+  " ("+(f-2*c.pop>=0?"+":"")+(f-2*c.pop)+"/ход)</span></div>";
+ if(c.pop>=c.housing)
+  html+="<div class='line' style='color:#e9c46a'>🏠 Рост сдержан жильём — постройте Амбар или основайте город у воды.</div>";
+ const b=c.build?METAItem(c.build):null;
+ html+="<div class='row'><span class='grow'>"+(b?"Строится: <b>"+b.name+"</b> ("+c.prod+"/"+b.cost+")":
+  "Ничего не строится")+"</span>"+btn("buildlist",{city:id},"🔨 Выбрать","gold")+
+  (c.buy!=null?btn("buy",{city:id},"💰 Купить "+c.buy):"")+"</div>";
+ if(!c.struck){
+  const targets=S.units.filter(v=>v.owner!==S.you&&rel(v.owner)==="war"&&distC(c.x,c.y,v.x,v.y)<=2);
+  if(targets.length){html+="<h3>🎯 Обстрел города (сила "+c.strength+")</h3>";
+   for(const t of targets)
+    html+="<div class='row'><span class='grow'>"+(ICON[t.type]||"")+" "+META.units[t.type].name+
+     " ❤"+t.hp+"</span>"+btn("strike",{city:id,x:t.x,y:t.y},"🎯")+"</div>";}
+ }else html+="<div class='line dim'>🎯 Город уже стрелял в этом ходу.</div>";
+ const bl=c.buildings.map(k=>META.blds[k].name.split(" (")[0]).join(", ")||"нет";
+ const wl=c.wonders.map(k=>META.wonders[k].name.split(" (")[0]).join(", ")||"нет";
+ html+="<div class='line dim'>Постройки: "+bl+"<br>Чудеса: "+wl+"</div>";
+ if(c.religion&&S.religions[c.religion])
+  html+="<div class='line dim'>🕊 Вера города: «"+S.religions[c.religion].name+"»</div>";
+ openSheet(html);
+}
+function sheetBuild(id){
+ const c=cityById(id);if(!c)return;
+ const m=S.me;
+ let html="<h2>🔨 "+c.name+": что строить<button class='x' data-cmd='close'>×</button></h2>";
+ const coastal=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+  .some(d=>S.tiles[c.y+d[1]]&&S.tiles[c.y+d[1]][c.x+d[0]]==="water");
+ html+="<h3>Юниты</h3><div class='grid'>";
+ for(const[k,v]of Object.entries(META.units)){
+  if(v.req&&!m.techs.includes(v.req))continue;
+  if(k==="missionary"&&!m.religion)continue;
+  if(META.unit_res[k]&&!(m.res[META.unit_res[k]]>0))continue;
+  if(v.naval&&!coastal)continue;
+  html+=btn("build",{city:id,item:"unit:"+k},ICON[k]+" "+v.name+" · "+v.cost+"⚙️");
+ }
+ html+="</div><h3>Здания</h3><div class='grid'>";
+ for(const[k,v]of Object.entries(META.blds)){
+  if(c.buildings.includes(k)||(v.req&&!m.techs.includes(v.req)))continue;
+  html+=btn("build",{city:id,item:"bld:"+k},v.name+" · "+v.cost+"⚙️");
+ }
+ html+="</div><h3>🏛 Чудеса света (нас. ≥3)</h3><div class='grid'>";
+ for(const[k,v]of Object.entries(META.wonders)){
+  if(v.req&&!m.techs.includes(v.req)||c.pop<3)continue;
+  html+=btn("build",{city:id,item:"wnd:"+k},v.name+" · "+v.cost+"⚙️");
+ }
+ html+="</div><div class='line dim'>Чудо можно построить только один раз во всём мире.</div>";
+ openSheet(html);
+}
+function sheetDiplo(){
+ let html="<h2>🤝 Дипломатия<button class='x' data-cmd='close'>×</button></h2>";
+ for(const[k,p]of Object.entries(S.players)){
+  if(k===S.you||!p.alive)continue;
+  const war=S.rel[k]==="war";
+  html+="<div class='row'><span class='grow' style='color:"+PL[p.color]+"'><b>"+p.name+"</b>"+
+   (p.ai?" 🤖":"")+" <span class='dim'>⭐"+p.score+"</span><br>"+
+   "<span class='dim'>"+(war?"⚔️ война":"🕊 мир")+
+   (S.offers.out.includes(k)?" · вы предложили мир":"")+"</span></span>";
+  if(!war)html+=btn("war",{player:k},"⚔️ Война","red");
+  if(war)html+=btn("peace",{player:k},"🕊 Мир");
+  if(S.offers.in.includes(k))html+=btn("accept",{player:k},"🕊 Принять мир","gold");
+  html+="</div>";
+ }
+ html+="<h3>🏯 Города-государства</h3>";
+ if(!S.cstates.length)html+="<div class='line dim'>Пока не найдены — исследуйте карту разведчиком.</div>";
+ for(const cs of S.cstates){
+  html+="<div class='row'><span class='grow'><b>"+cs.name+"</b> <span class='dim'>"+META.cs_kinds[cs.kind]+
+   "</span><br><span class='dim'>"+(cs.war?"⚔️ война":
+   "влияние "+cs.inf+"/"+META.cs_ally_min+(cs.ally?" · союзник: "+(S.players[cs.ally]?S.players[cs.ally].name:""):""))+
+   "</span></span>";
+  if(!cs.war)html+=btn("csgift",{cs:cs.id},"🎁 "+META.cs_gift+"💰")+btn("cswar",{cs:cs.id},"⚔️","red");
+  else html+=btn("cspeace",{cs:cs.id},"🕊 "+META.cs_peace_cost+"💰");
+  html+="</div>";
+ }
+ html+="<div class='line dim'>Пока вы в мире, боевые юниты не пускают в чужие границы.</div>";
+ openSheet(html);
+}
+function sheetRel(){
+ const m=S.me;
+ let html="<h2>🕊 Религия<button class='x' data-cmd='close'>×</button></h2>";
+ html+="<div class='row'><span class='tag'>Вера: "+m.faith+"</span>"+
+  "<span class='dim'>+1 за город, +2 за храм, +3 за чудо в ход</span></div>";
+ if(m.religion&&S.religions[m.religion]){
+  const r=S.religions[m.religion],b=META.beliefs[r.belief];
+  html+="<div class='line'>Ваша религия: «<b>"+r.name+"</b>» — "+b[1]+" ("+b[2]+"). "+
+   "Вера сама распространяется по городам рядом; за чужие верующие города +1💰/ход.</div>";
+ }else if(m.can_religion){
+  html+="<h3>Основать религию (30 веры, нужен храм)</h3>";
+  for(const[k,b]of Object.entries(META.beliefs))
+   html+="<div class='row'><span class='grow'>"+b[0]+" <b>"+b[1]+"</b> — "+b[2]+"</span>"+
+    btn("religion",{belief:k},"Выбрать","gold")+"</div>";
+ }else{
+  html+="<div class='line dim'>Чтобы основать религию: накопить 30 веры и построить Храм (Письменность). "+
+   "Миссионеры обращают соседние города.</div>";
+ }
+ const rs=Object.entries(S.religions);
+ if(rs.length){
+  html+="<h3>Религии мира</h3>";
+  for(const[rid,r]of rs)
+   html+="<div class='line'>«"+r.name+"» — "+(S.players[r.founder]?S.players[r.founder].name:"")+
+    ", городов: "+r.cities+"</div>";
+  if(S.rel_hold&&S.rel_hold.rid)
+   html+="<div class='line warn' style='color:#e9c46a'>⏳ «"+(S.religions[S.rel_hold.rid]||{}).name+
+    "» держит большинство: "+S.rel_hold.n+"/4 ходов до религиозной победы.</div>";
+ }
+ openSheet(html);
+}
+function sheetUnits(){
+ let html="<h2>🪖 Ваши юниты<button class='x' data-cmd='close'>×</button></h2>";
+ const us=S.units.filter(u=>u.owner===S.you&&!u.aboard);
+ if(!us.length)html+="<div class='line dim'>Юнитов нет.</div>";
+ for(const u of us)
+  html+="<div class='row'><span class='grow'>"+(ICON[u.type]||"")+" "+META.units[u.type].name+
+   " <span class='dim'>("+u.x+","+u.y+") ❤"+u.hp+" 🦶"+u.mv+
+   (promoLvl(u)?" "+"★".repeat(promoLvl(u)):"")+(u.job?" 🔨":"")+(u.fort?" 🛡":"")+
+   (u.auto?" 🤖":"")+"</span></span>"+btn("goto",{x:u.x,y:u.y,unit:u.id},"🎯 Выбрать","gold")+"</div>";
+ openSheet(html);
+}
+function sheetCities(){
+ let html="<h2>🏙 Ваши города<button class='x' data-cmd='close'>×</button></h2>";
+ const cs=S.cities.filter(c=>c.owner===S.you);
+ if(!cs.length)html+="<div class='line dim'>Городов нет — основателя даёт поселенец.</div>";
+ for(const c of cs){
+  const b=c.build?METAItem(c.build):null;
+  html+="<div class='row'><span class='grow'>"+(c.capital?"⭐":"")+c.name+
+   " <span class='dim'>нас."+c.pop+" · "+(b?"🔨 "+b.name:"простаивает")+"</span></span>"+
+   btn("goto",{x:c.x,y:c.y,city:c.id},"🎯")+btn("gocity",{city:c.id},"🏙","gold")+"</div>";
+ }
+ openSheet(html);
+}
+function sheetVictory(){
+ let html="<h2>🏆 Прогресс побед<button class='x' data-cmd='close'>×</button></h2>";
+ const total=Object.keys(META.techs).length;
+ html+="<h3>🔬 Научная</h3><div class='row'><span class='grow'>Изучено "+S.me.techs.length+"/"+total+
+  (S.me.research?" · сейчас: "+META.techs[S.me.research].name:"")+"</span>"+
+  "<span class='pb'><i style='width:"+Math.round(100*S.me.techs.length/total)+"%'></i></span></div>";
+ html+="<h3>⚔️ Господство</h3>";
+ for(const[k,p]of Object.entries(S.players)){
+  const nc=S.cities.filter(c=>c.owner===k).length;
+  html+="<div class='row'><span class='grow' style='color:"+PL[p.color]+"'>"+p.name+(p.ai?" 🤖":"")+
+   (p.alive?"":" 💀")+"</span><span class='dim'>городов: "+nc+"</span></div>";
+ }
+ html+="<div class='line dim'>Останьтесь последней цивилизацией (или захватите все города).</div>";
+ const rs=Object.entries(S.religions);
+ if(rs.length){
+  html+="<h3>🕊 Религиозная</h3>";
+  const totalCities=S.cities.length||1;
+  for(const[rid,r]of rs)
+   html+="<div class='row'><span class='grow'>«"+r.name+"» — "+r.cities+" городов</span>"+
+    "<span class='pb'><i style='width:"+Math.round(100*r.cities/totalCities)+"%'></i></span></div>";
+  if(S.rel_hold&&S.rel_hold.rid&&S.religions[S.rel_hold.rid])
+   html+="<div class='line' style='color:#e9c46a'>⏳ «"+S.religions[S.rel_hold.rid].name+"»: "+
+    (S.rel_hold.n||0)+"/4 ходов до победы.</div>";
+ }
+ html+="<h3>⭐ Очки (победа по очкам после "+META.max_turns+" хода)</h3>";
+ const sorted=Object.entries(S.players).sort((a,b)=>b[1].score-a[1].score);
+ sorted.forEach((e,i)=>{html+="<div class='row'><span class='grow'>"+(i+1)+". "+
+  "<span style='color:"+PL[e[1].color]+"'>"+e[1].name+"</span>"+(e[1].ai?" 🤖":"")+"</span>"+
+  "<b>"+e[1].score+"</b></div>";});
+ openSheet(html);
+}
+function sheetSettings(){
+ openSheet("<h2>⚙ Настройки<button class='x' data-cmd='close'>×</button></h2>"+
+  "<div class='row'><span class='grow'>Анимация юнитов</span>"+
+   btn("set",{k:"anim"},SET.anim?"Вкл":"Выкл","gold")+"</div>"+
+  "<div class='row'><span class='grow'>Миникарта</span>"+
+   btn("set",{k:"mm"},SET.mm?"Вкл":"Выкл","gold")+"</div>"+
+  (SOLO?"<div class='row'><span class='grow'>Скачать сохранение партии</span>"+btn("dl",{},"💾")+"</div>":"")+
+  "<div class='line dim'>Версия игры: "+(META.version||"—")+"</div>");
+}
+async function downloadSave(){
+ try{
+  const j=await api("/api/savefile");
+  const blob=new Blob([JSON.stringify(j,null,1)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="civil-wars-turn"+(j.turn||0)+".json";
+  a.click();URL.revokeObjectURL(a.href);
+  toast("💾 Сохранение скачано");
+ }catch(e){toast("⚠️ "+e.message);}
+}
+function sheetHints(){
+ let html="<h2>💡 Советы<button class='x' data-cmd='close'>×</button></h2>";
+ html+=(S.hints&&S.hints.length)?S.hints.map(t=>"<div class='line'>💡 "+t+"</div>").join(""):
+  "<div class='line dim'>Пока всё отлично — советов нет.</div>";
+ openSheet(html);
+}
+function sheetNews(){
+ let html="<h2>📰 События<button class='x' data-cmd='close'>×</button></h2>";
+ html+="<h3>Общие</h3>";
+ html+=(S.pub.length?S.pub.map(t=>"<div class='line'>"+t+"</div>").join(""):"<div class='line dim'>—</div>");
+ html+="<h3>Ваши</h3>";
+ html+=(S.me.news.length?S.me.news.map(t=>"<div class='line'>"+t+"</div>").join(""):"<div class='line dim'>—</div>");
+ openSheet(html);
+}
+function sheetHelp(){
+ openSheet("<h2>❔ Как играть<button class='x' data-cmd='close'>×</button></h2>"+
+ "<div class='line'>• Зажмите и тяните — перемещение карты; щипок или колесо — масштаб.</div>"+
+ "<div class='line'>• Тап по своему юниту — выбрать; тап по подсвеченной клетке — идти; по красной — атаковать вблизи. В подтверждении атаки — прогноз урона.</div>"+
+ "<div class='line'>• ➡️ — следующий юнит с движением; миникарта справа внизу — тап для перемещения камеры.</div>"+
+ "<div class='line'>• Клавиатура: стрелки/WASD — движение юнита, N — следующий, Enter — конец хода, H — к столице, +/− — масштаб.</div>"+
+ "<div class='line'>• 🪖 и 🏙 вверху — списки юнитов и городов с быстрым переходом; на компьютере наведение мыши на клетку показывает её содержимое.</div>"+
+ "<div class='line'>• 🏕 Лагеря варваров шлют рейдеров волнами; войдите в клетку лагеря — разорение, +20💰.</div>"+
+ "<div class='line'>• 🏔 Чудеса природы дают бонусы клетке или городу, охватившему их границами; 🏠 жильё (2 + амбар + 1 у воды) ограничивает рост города.</div>"+
+ "<div class='line'>• ⭐ Юниты копят опыт в бою: повышение (до 3) даёт +15% силы; ⬆ улучшение — за золото на своей земле.</div>"+
+ "<div class='line'>• У рабочего зелёным подсвечены клетки для фермы/шахты — тап по зелёной клетке дойти и улучшить.</div>"+
+ "<div class='line'>• Лучник и катапульта бьют издалека без ответа (пунктир — цели в радиусе).</div>"+
+ "<div class='line'>• Тап по своему городу — управление: производство, покупка, обстрел города.</div>"+
+ "<div class='line'>• Поселенец основывает город, рабочий строит фермы 🌽 и шахты 🪨, дороги 🛤.</div>"+
+ "<div class='line'>• Города дают 🌾⚙️🔬💰; культура 🎭 расширяет границы; варвары ⚫ грабят беззащитные города.</div>"+
+ "<div class='line'>• 🤝 Дипломатия: войны и мир, города-государства (подарки → союз).</div>"+
+ "<div class='line'>• 🕊 Вера: храм → религия с бонусом, миссионеры обращают города.</div>"+
+ "<div class='line'>• 🏆 Победа: остаться последним, изучить все технологии, религиозное большинство или очки к 60 ходу. Экран «🏆» — прогресс по всем целям.</div>"+
+ "<div class='line dim'>Версия "+(META.version||"")+".</div>");
+}
+
+/* ---------- команды UI ---------- */
+async function handleCmd(cmd,a){
+ if(cmd==="close")return closeSheet();
+ if(cmd==="desel"){sel=null;afterState();render();return;}
+ if(cmd==="open"){
+  if(a.tech)return sheetTech();
+  if(a.diplo)return sheetDiplo();
+  if(a.rel)return sheetRel();
+  if(a.news)return sheetNews();
+  if(a.help)return sheetHelp();
+  if(a.win)return sheetVictory();
+  if(a.hints)return sheetHints();
+  if(a.settings)return sheetSettings();
+  if(a.units)return sheetUnits();
+  if(a.cities)return sheetCities();
+  if(a.city!=null)return sheetCity(a.city);
+  return;
+ }
+ if(cmd==="goto"){
+  closeSheet();
+  if(a.unit!=null)sel={kind:"unit",id:a.unit};
+  else if(a.city!=null)sel={kind:"city",id:a.city};
+  cam.x=innerWidth/2-(a.x+.5)*cam.z;cam.y=innerHeight/2-(a.y+.5)*cam.z;
+  afterState();render();return;
+ }
+ if(cmd==="gocity"){closeSheet();sel={kind:"city",id:a.city};afterState();render();sheetCity(a.city);return;}
+ if(cmd==="dl")return downloadSave();
+ if(cmd==="buildlist")return sheetBuild(a.city);
+ if(cmd==="set"){SET[a.k]=!SET[a.k];saveSet();sheetSettings();return;}
+ if(cmd==="restart"){closeSheet();showStart();return;}
+ if(cmd==="end")return act("end");
+ closeSheet();
+ await act(cmd,a);
+ if(cmd==="build"||cmd==="buy")sheetCity(a.city);
+ if(cmd==="research")sheetTech();
+}
+document.addEventListener("click",e=>{
+ const t=e.target.closest("[data-cmd]");
+ if(!t)return;
+ let a={};try{a=JSON.parse(t.getAttribute("data-a")||"{}");}catch(err){}
+ handleCmd(t.getAttribute("data-cmd"),a);
+});
+
+/* ---------- карта: касания ---------- */
+function tileAt(px,py){
+ const x=Math.floor((px-cam.x)/cam.z),y=Math.floor((py-cam.y)/cam.z);
+ if(x<0||y<0||x>=S.w||y>=S.h)return null;
+ return [x,y];
+}
+function confirmSheet(title,body,buttons){
+ openSheet("<h2>"+title+"<button class='x' data-cmd='close'>×</button></h2><div class='line'>"+body+
+  "</div><div class='row'>"+buttons+"</div>");
+}
+function dstrOf(target,x,y){
+ const t=S.tiles[y]&&S.tiles[y][x];
+ let d=META.units[target.type].def*((t&&META.terrain[t])?META.terrain[t].def:1);
+ if(target.fort)d*=1.25;
+ const ci=S.cities.find(c=>c.x===x&&c.y===y&&c.owner===target.owner);
+ if(ci)d*=1.25;
+ return d;
+}
+const estDmg=(a,target,x,y)=>Math.max(2,Math.round(3+6*a/(a+dstrOf(target,x,y))));
+const targetAt=(x,y)=>S.units.find(v=>v.x===x&&v.y===y&&v.owner!==S.you&&rel(v.owner)==="war"&&!v.aboard);
+async function walkPath(id,path){
+ for(const step of path){
+  const uu=unitById(id);if(!uu||uu.mv<=0)break;
+  if(uu.x===step[0]&&uu.y===step[1])continue;
+  await act("move",{unit:id,x:step[0],y:step[1]});
+  const nu=unitById(id);
+  if(!nu||nu.x!==step[0]||nu.y!==step[1])break;
+ }
+}
+async function tap(px,py){
+ if(!S)return;
+ const t=tileAt(px,py);if(!t)return;
+ const[x,y]=t,k=x+","+y;
+ const u=sel&&sel.kind==="unit"?unitById(sel.id):null;
+ if(u&&u.owner===S.you){
+  const adj=Math.abs(u.x-x)<=1&&Math.abs(u.y-y)<=1;
+  if(attacks.has(k)){
+   const tgt=targetAt(x,y);
+   let extra="";
+   if(tgt){
+    const deal=estDmg(META.units[u.type].att,tgt,x,y);
+    extra="Прогноз: нанесёте ≈"+deal+"❤"+(adj?", получите ≈"+estDmg(META.units[tgt.type].att,u,u.x,u.y)+"❤":"")+".";
+   }
+   return confirmSheet("⚔️ Атаковать?","Юнит "+META.units[u.type].name+" атакует клетку ("+x+","+y+"). "+extra,
+    btn("move",{unit:u.id,x:x,y:y},"⚔️ Атаковать","red")+btn("close",{},"Отмена","gray"));
+  }
+  if(rangedT.has(k)&&!adj){
+   const tgt=targetAt(x,y);
+   const extra=tgt?"Прогноз: ≈"+estDmg(META.units[u.type].att,tgt,x,y)+"❤, без ответа.":"";
+   return confirmSheet("🎯 Обстрел?","Обстрелять врага в клетке ("+x+","+y+"). "+extra,
+    btn("ranged",{unit:u.id,x:x,y:y},"🎯 Обстрелять","red")+btn("close",{},"Отмена","gray"));
+  }
+  if(u.type==="worker"&&jobTiles.has(k)){
+   if(u.x===x&&u.y===y)return act("job",{unit:u.id,job:jobTiles.get(k)});
+   if(reach.has(k)){await walkPath(u.id,reach.get(k));
+    toast("🔨 Рабочий идёт к клетке — строительство начнётся, если останется движение");}
+   return;
+  }
+  if(reach.has(k)){await walkPath(u.id,reach.get(k));return;}
+ }
+ const mine=S.units.filter(v=>v.owner===S.you&&v.x===x&&v.y===y&&!v.aboard);
+ const myCity=S.cities.find(c=>c.x===x&&c.y===y&&c.owner===S.you);
+ if(myCity){
+  const selOnTile=sel&&sel.kind==="unit"&&mine.some(v=>v.id===sel.id);
+  if(mine.length&&!selOnTile){sel={kind:"unit",id:mine[0].id};afterState();render();return;}
+  sel={kind:"city",id:myCity.id};afterState();render();sheetCity(myCity.id);return;
+ }
+ if(mine.length){
+  const i=mine.findIndex(v=>sel&&sel.kind==="unit"&&v.id===sel.id);
+  sel={kind:"unit",id:mine[(i+1)%mine.length].id};
+  afterState();render();return;
+ }
+ const cs=S.cstates.find(c=>c.x===x&&c.y===y);
+ const city=S.cities.find(c=>c.x===x&&c.y===y);
+ const terr=META.tiles?null:S.tiles[y][x];
+ let info="";
+ if(city)info="🏛 "+city.name+" ("+(S.players[city.owner]?S.players[city.owner].name:city.owner)+"), нас. "+city.pop;
+ else if(cs)info="🏯 "+cs.name+" — "+META.cs_kinds[cs.kind]+(cs.war?" (война)":"");
+ else if(S.tiles[y][x]){
+  const tt=META.terrain[S.tiles[y][x]];
+  info=tt.name+" · 🌾"+tt.f+" ⚙️"+tt.p;
+  if(S.impr[k])info+=" · "+META.impr[S.impr[k]].name;
+  if(S.res[k])info+=" · "+META.res[S.res[k]].emoji+" "+META.res[S.res[k]].name;
+  if(S.nwonders&&S.nwonders[k]){const w=META.nwonders[S.nwonders[k]];
+   info+=" · "+w.emoji+" "+w.name+": "+w.desc;}
+  if(S.owners[k])info+=" · земля: "+(S.players[S.owners[k]]?S.players[S.owners[k]].name:S.owners[k]);
+ }
+ if(info)toast(info);
+ sel=null;afterState();render();
+}
+
+/* ---------- жесты ---------- */
+const ptr=new Map();let moved=0,pd=0;
+const pinch=()=>{if(ptr.size<2)return 0;const[a,b]=[...ptr.values()];return Math.hypot(a[0]-b[0],a[1]-b[1]);};
+function zoom(f,cx,cy){
+ const nz=Math.max(16,Math.min(120,cam.z*f)),kk=nz/cam.z;
+ cam.x=cx-(cx-cam.x)*kk;cam.y=cy-(cy-cam.y)*kk;cam.z=nz;draw();
+}
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);
+ ptr.set(e.pointerId,[e.clientX,e.clientY]);moved=0;pd=pinch();});
+cv.addEventListener("pointermove",e=>{
+ const p=ptr.get(e.pointerId);if(!p)return;
+ const dx=e.clientX-p[0],dy=e.clientY-p[1];
+ ptr.set(e.pointerId,[e.clientX,e.clientY]);moved+=Math.abs(dx)+Math.abs(dy);
+ if(ptr.size===2){const d=pinch(),[a,b]=[...ptr.values()];
+  if(pd)zoom(d/pd,(a[0]+b[0])/2,(a[1]+b[1])/2);pd=d;}
+ else{cam.x+=dx;cam.y+=dy;draw();}
+});
+cv.addEventListener("pointerup",e=>{
+ if(ptr.size===1&&moved<8)tap(e.clientX,e.clientY);
+ ptr.delete(e.pointerId);
+});
+cv.addEventListener("pointercancel",e=>ptr.delete(e.pointerId));
+cv.addEventListener("wheel",e=>{e.preventDefault();zoom(e.deltaY<0?1.1:0.9,e.clientX,e.clientY);},{passive:false});
+/* тултип клетки (десктоп) */
+const tip=$("tip");
+cv.addEventListener("pointermove",e=>{
+ if(ptr.size||e.pointerType!=="mouse"||!S||!META){tip.classList.remove("show");return;}
+ const t=tileAt(e.clientX,e.clientY);
+ if(!t||!S.tiles[t[1]][t[0]]){tip.classList.remove("show");return;}
+ const[x,y]=t,k=x+","+y,terr=S.tiles[y][x];
+ let info=META.terrain[terr].name+" · 🌾"+META.terrain[terr].f+" ⚙️"+META.terrain[terr].p;
+ if(S.impr[k])info+=" · "+META.impr[S.impr[k]].name;
+ if(S.res[k])info+=" · "+META.res[S.res[k]].emoji;
+ if(S.huts.includes(k))info+=" · 🛖";
+ if(S.camps&&S.camps.includes(k))info+=" · 🏕";
+ if(S.nwonders&&S.nwonders[k])info+=" · "+META.nwonders[S.nwonders[k]].emoji;
+ const c=S.cities.find(c=>c.x===x&&c.y===y);if(c)info+=" · 🏛 "+c.name;
+ else if(S.owners[k]&&S.players[S.owners[k]])info+=" · "+S.players[S.owners[k]].name;
+ tip.textContent=info;
+ tip.style.left=Math.min(innerWidth-230,e.clientX+14)+"px";
+ tip.style.top=Math.min(innerHeight-40,e.clientY+16)+"px";
+ tip.classList.add("show");
+});
+cv.addEventListener("pointerdown",()=>tip.classList.remove("show"),{capture:true});
+addEventListener("resize",draw);
+$("zin").onclick=()=>zoom(1.2,innerWidth/2,innerHeight/2);
+$("zout").onclick=()=>zoom(0.83,innerWidth/2,innerHeight/2);
+$("home").onclick=()=>{centerOnMe();draw();drawMM();};
+$("end").onclick=()=>act("end");
+$("nextu").onclick=()=>nextUnit();
+function nextUnit(){
+ if(!S)return;
+ let cand=S.units.filter(u=>u.owner===S.you&&!u.aboard&&!u.job&&u.mv>0);
+ if(!cand.length)cand=S.units.filter(u=>u.owner===S.you&&!u.aboard);
+ if(!cand.length){toast("Нет юнитов");return;}
+ const i=cand.findIndex(u=>sel&&sel.kind==="unit"&&u.id===sel.id);
+ const u=cand[(i+1)%cand.length];
+ sel={kind:"unit",id:u.id};
+ cam.x=innerWidth/2-(u.x+.5)*cam.z;cam.y=innerHeight/2-(u.y+.5)*cam.z;
+ afterState();render();
+}
+addEventListener("keydown",e=>{
+ if(e.key==="Escape"){closeSheet();return;}
+ if(e.key==="Enter"&&e.target&&e.target.tagName==="BUTTON")return;
+ if($("sheet").classList.contains("open")||!S)return;
+ const u=sel&&sel.kind==="unit"?unitById(sel.id):null;
+ const mv=(dx,dy)=>{if(u&&!u.aboard&&u.mv>0)act("move",{unit:u.id,x:u.x+dx,y:u.y+dy});};
+ const k=e.key;
+ if(k==="ArrowUp"||k==="w"||k==="ц"){mv(0,-1);e.preventDefault();}
+ else if(k==="ArrowDown"||k==="s"||k==="ы"){mv(0,1);e.preventDefault();}
+ else if(k==="ArrowLeft"||k==="a"||k==="ф"){mv(-1,0);e.preventDefault();}
+ else if(k==="ArrowRight"||k==="d"||k==="в"){mv(1,0);e.preventDefault();}
+ else if(k==="n"||k==="т")nextUnit();
+ else if(k==="Enter")act("end");
+ else if(k==="h"||k==="р"){centerOnMe();draw();drawMM();}
+ else if(k==="+"||k==="=")zoom(1.2,innerWidth/2,innerHeight/2);
+ else if(k==="-")zoom(0.83,innerWidth/2,innerHeight/2);
+});
+
+/* ---------- старт (solo) ---------- */
+function showStart(){
+ $("start").classList.remove("hidden");
+ $("veil").classList.add("hidden");
+}
+$("s-go").onclick=async()=>{
+ const body={name:$("s-name").value||"Вы",ais:+$("s-ais").value,difficulty:$("s-diff").value};
+ try{
+  const r=await api("/api/newgame",{method:"POST",body:JSON.stringify(body)});
+  S=r.state;$("start").classList.add("hidden");
+  centerOnMe();afterState();render();
+  toast("🚀 Игра началась! Основайте город поселенцем.");
+ }catch(e){toast("⚠️ "+e.message);}
+};
+
+(async()=>{
+ try{META=await api("/api/meta");}
+ catch(e){document.body.innerHTML="<p style='padding:30px'>Сервер недоступен: "+e.message+"</p>";return;}
+ $("s-sub").textContent+=" · v"+(META.version||"");
+ applySet();
+ if(TG&&!CHAT){$("top").textContent="Откройте игру командой /play в чате с ботом";return;}
+ await refresh(true);
+ setInterval(()=>{if(!document.hidden&&$("start").classList.contains("hidden"))refresh(false);},
+  SOLO?30000:12000);
+})();
+</script></body></html>
