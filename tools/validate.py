@@ -63,6 +63,8 @@ def check_version():
 def invariants(s):
     errs = []
     W, H = len(s["map"][0]), len(s["map"])
+    if any(len(p["seen"]) != W * H for p in s["players"].values()):
+        errs.append("размер seen не равен W*H")
     for uid, u in s["units"].items():
         if not (0 <= u["x"] < W and 0 <= u["y"] < H):
             errs.append(f"юнит {uid} вне карты")
@@ -86,8 +88,9 @@ def check_sim():
     import engine as E
     errs, idle = [], 0
     first_seen = {}
-    for seed in range(1, 7):
-        s = E.new_game("me", seed=seed)
+    plan = [(sd, "small") for sd in range(1, 7)] + [(11, "standard"), (12, "standard"), (13, "large")]
+    for seed, size in plan:
+        s = E.new_game("me", seed=seed, size=size)
         E.add_player(s, "me", "T")
         for name in ai.AI_NAMES[:2]:
             E.add_ai(s, name)
@@ -113,7 +116,8 @@ def check_sim():
                     first_seen[(seed, uid)] = ((u["x"], u["y"]), n)
                     if n == 4:
                         idle += 1
-    step("симуляции ИИ (6 партий × 45 ходов)", not errs, "; ".join(errs[:3]))
+    E.set_size(*E.MAP_SIZES["small"])
+    step("симуляции ИИ (9 партий × 45 ходов, 3 размера карты)", not errs, "; ".join(errs[:3]))
     step("ИИ не копит поселенцев", idle <= 3, f"застрявших поселенцев (4+ хода на месте): {idle}")
 
 
