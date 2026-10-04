@@ -105,6 +105,8 @@ canvas{display:block;touch-action:none;position:fixed;inset:0}
  <label>Ваше имя</label><input id="s-name" maxlength="24" placeholder="Вы">
  <label>Соперников (ИИ)</label>
  <select id="s-ais"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+ <label>Размер карты</label>
+ <select id="s-size"><option value="small">Малая 14×10</option><option value="standard" selected>Стандартная 20×14</option><option value="large">Большая 28×18</option></select>
  <label>Сложность</label>
  <select id="s-diff"><option value="easy">Лёгкий</option><option value="normal" selected>Обычный</option><option value="hard">Трудный</option></select>
  <button class="abtn gold" id="s-go" style="width:100%;padding:13px;font-size:16px;margin-top:10px">⚔️ Начать игру</button>
@@ -451,6 +453,7 @@ function render(){draw();drawMM();}
 /* ---------- миникарта ---------- */
 function drawMM(){
  if(!S||!META||!SET.mm)return;
+ const mh=Math.round(140*S.h/S.w);if(mm.height!==mh)mm.height=mh;
  const w=mm.width/S.w,h=mm.height/S.h;
  mg.fillStyle="#0a0f15";mg.fillRect(0,0,mm.width,mm.height);
  const VIS=new Set(S.visible.map(p=>Array.isArray(p)?p[0]+","+p[1]:p));
@@ -1162,7 +1165,7 @@ function showStart(){
  $("veil").classList.add("hidden");
 }
 $("s-go").onclick=async()=>{
- const body={name:$("s-name").value||"Вы",ais:+$("s-ais").value,difficulty:$("s-diff").value};
+ const body={name:$("s-name").value||"Вы",ais:+$("s-ais").value,difficulty:$("s-diff").value,size:$("s-size").value};
  try{
   const r=await api("/api/newgame",{method:"POST",body:JSON.stringify(body)});
   S=r.state;$("start").classList.add("hidden");
