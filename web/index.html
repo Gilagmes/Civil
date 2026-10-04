@@ -125,7 +125,7 @@ const cv=$("c"),g=cv.getContext("2d");
 const mm=$("mm"),mg=mm.getContext("2d");
 
 const ICON={settler:"🧳",worker:"🔨",scout:"🔭",warrior:"🗡️",archer:"🏹",horseman:"🐎",
- swordsman:"⚔️",catapult:"💣",missionary:"📿",galley:"⛵",knight:"🏇",crossbowman:"🎯"};
+ swordsman:"⚔️",catapult:"💣",missionary:"📿",galley:"⛵",knight:"🏇",crossbowman:"🎯",trader:"🐫"};
 const PL=["#e63946","#457b9d","#2a9d8f","#e9c46a","#9b5de5","#f4a261"];
 const TCOL={plains:"#9cb456",forest:"#5e8c44",hills:"#a98467",water:"#3d7fbe"};
 
@@ -154,9 +154,11 @@ async function act(action,extra){
   const body=Object.assign({chat:CHAT,action:action},extra||{});
   const r=await api("/api/act",{method:"POST",body:JSON.stringify(body)});
   S=r.state;if(r.msg)toast(r.msg);
+  snd("ok");
   if(TG&&TG.HapticFeedback)TG.HapticFeedback.impactOccurred("light");
  }catch(e){
   toast("⚠️ "+e.message);
+  snd("bad");
   if(TG&&TG.HapticFeedback)TG.HapticFeedback.notificationOccurred("error");
  }
  if(sel&&sel.kind==="unit"&&!unitById(sel.id))sel=null;
@@ -267,14 +269,29 @@ function workerTiles(u,tiles){
  };
  for(const p of tiles)consider(p[0],p[1]);
 }
-let SET={anim:true,mm:true};
+let SET={anim:true,mm:true,snd:true};
 try{SET=Object.assign(SET,JSON.parse(localStorage.getItem("civset")||"{}"));}catch(e){}
 function saveSet(){try{localStorage.setItem("civset",JSON.stringify(SET));}catch(e){}applySet();}
 function applySet(){mm.style.display=SET.mm?"":"none";}
+/* короткие звуки интерфейса (WebAudio, без файлов) */
+function snd(kind){
+ if(!SET.snd)return;
+ try{
+  const ctx=window._ac||(window._ac=new (window.AudioContext||window.webkitAudioContext)());
+  if(ctx.state==="suspended")ctx.resume();
+  const P={ok:[523.25,0.09,"sine"],bad:[174.61,0.14,"sawtooth"],turn:[880,0.07,"triangle"],
+           click:[392,0.05,"square"]}[kind]||[440,0.05,"sine"];
+  const t=ctx.currentTime,o=ctx.createOscillator(),gn=ctx.createGain();
+  o.type=P[2];o.frequency.setValueAtTime(P[0],t);
+  if(kind==="turn")o.frequency.exponentialRampToValueAtTime(1318.5,t+P[1]);
+  gn.gain.setValueAtTime(0.05,t);gn.gain.exponentialRampToValueAtTime(0.001,t+P[1]);
+  o.connect(gn);gn.connect(ctx.destination);o.start(t);o.stop(t+P[1]+0.02);
+ }catch(e){}
+}
 let lastTurn=0;
 function afterState(){
  computeReach();topUI();ubUI();endUI();winUI();
- if(S&&S.turn!==lastTurn){if(lastTurn)showBanner("ХОД "+S.turn);lastTurn=S.turn;}
+ if(S&&S.turn!==lastTurn){if(lastTurn){showBanner("ХОД "+S.turn);snd("turn");}lastTurn=S.turn;}
 }
 function showBanner(t){const b=$("banner");b.textContent=t;b.classList.add("show");
  clearTimeout(showBanner._t);showBanner._t=setTimeout(()=>b.classList.remove("show"),1300);}
@@ -355,7 +372,7 @@ function drawUnit(u,z){
  g.fillStyle="#0009";g.fillRect(px-w/2,py+r+2,w,3);
  g.fillStyle=hp>0.6?"#79c476":hp>0.3?"#e9c46a":"#e63946";g.fillRect(px-w/2,py+r+2,w*hp,3);
  if(u.fort)emoji("🛡",px-r*0.9,py-r*0.9,z*0.18);
- if(u.job)emoji("🔨",px+r*0.9,py-r*0.9,z*0.18);
+ if(u.job)emoji(u.job==="route"?"🐫":"🔨",px+r*0.9,py-r*0.9,z*0.18);
  if(u.auto)emoji("🤖",px-r*0.9,py+r*0.9,z*0.18);
  const lv=promoLvl(u);
  if(lv){g.fillStyle="#ffd60a";g.font="700 "+Math.max(8,z*0.16)+"px system-ui";
@@ -419,6 +436,13 @@ function draw(){
  for(const k of jobTiles.keys()){const[x,y]=k.split(",").map(Number);
   g.strokeRect(cam.x+x*z+2,cam.y+y*z+2,z-5,z-5);}
  g.setLineDash([]);
+ if(S.routes&&S.routes.length){       // торговые пути — золотой пунктир между городами
+  g.strokeStyle="rgba(233,196,106,.85)";g.lineWidth=2;g.setLineDash([6,5]);
+  for(const r of S.routes){const a=S.cities.find(c=>c.id===r.a),b=S.cities.find(c=>c.id===r.b);
+   if(!a||!b)continue;
+   g.beginPath();g.moveTo(cam.x+(a.x+0.5)*z,cam.y+(a.y+0.5)*z);
+   g.lineTo(cam.x+(b.x+0.5)*z,cam.y+(b.y+0.5)*z);g.stroke();}
+  g.setLineDash([]);}
  for(const c of S.cities)drawCity(c,z);
  for(const u of S.units)if(!u.aboard)drawUnit(u,z);
 }
@@ -496,6 +520,10 @@ function topUI(){
  html+="<span class='chip' data-cmd='open' data-a='{\"tech\":1}'>🔬+"+inc.sci+
    (r?"<span class='dim'>&nbsp;"+r.name+"&nbsp;"+Math.floor(m.progress)+"/"+r.cost+"</span>":
       "<span class='warn'>&nbsp;выберите!</span>")+"</span>";
+ html+="<span class='chip' data-cmd='open' data-a='{\"civics\":1}'>🎭+"+m.culture+
+   (m.civic&&META.civics[m.civic]?"<span class='dim'>&nbsp;"+META.civics[m.civic].name+
+    "&nbsp;"+Math.floor(m.cprogress||0)+"/"+META.civics[m.civic].cost+"</span>":"")+
+   "</span>";
  html+="<span class='chip' data-cmd='open' data-a='{\"rel\":1}'>🕊"+m.faith+"</span>";
  html+="<span class='chip res'>⭐"+m.score+"</span>";
  if(S.hints&&S.hints.length)
@@ -507,6 +535,7 @@ function topUI(){
  html+="<button class='tbtn' data-cmd='open' data-a='{\"units\":1}'>🪖</button>";
  html+="<button class='tbtn' data-cmd='open' data-a='{\"cities\":1}'>🏙</button>";
  html+="<button class='tbtn' data-cmd='open' data-a='{\"tech\":1}'>🔬</button>";
+ html+="<button class='tbtn' data-cmd='open' data-a='{\"civics\":1}'>🎭</button>";
  html+="<button class='tbtn' data-cmd='open' data-a='{\"win\":1}'>🏆</button>";
  html+="<button class='tbtn' data-cmd='open' data-a='{\"diplo\":1}'>🤝</button>";
  html+="<button class='tbtn' data-cmd='open' data-a='{\"news\":1}'>📰"+(m.news.length?"•":"")+"</button>";
@@ -528,7 +557,24 @@ function ubUI(){
     "%;background:"+(u.hp>6?"#79c476":u.hp>3?"#e9c46a":"#e63946")+"'></i></span>"+
     "<span class='dim'>❤"+u.hp+" ⚔"+ut.att+" 🛡"+ut.def+" 🦶"+u.mv+"/"+ut.moves+
     (ut.range?" 🎯"+ut.range:"")+(promoLvl(u)?" "+"★".repeat(promoLvl(u)):"")+"</span></span>";
-  if(u.job)html+="<span class='tag'>🔨 осталось "+u.left+" х.</span>";
+  if(u.job&&u.job!=="route")html+="<span class='tag'>🔨 осталось "+u.left+" х.</span>";
+  if(u.type==="trader"){
+   if(u.job==="route"){
+    const r=(S.routes||[]).find(rr=>rr.uid==u.id);
+    html+="<span class='tag'>🐫 в пути "+(r?r.left:u.left)+" х. +"+(r?r.yields[0]+"💰+"+r.yields[1]+"🌾":"")+"</span>";
+    if(r)html+=btn("routecancel",{route:r.id},"🛑 Отозвать","red");
+   }else{
+    const org=S.cities.find(cc=>cc.x===u.x&&cc.y===u.y&&cc.owner===S.you);
+    if(org){
+     for(const cc of S.cities)if(cc.owner===S.you&&cc.id!==org.id){
+      const d=distC(org.x,org.y,cc.x,cc.y),gg=2+Math.floor(d/3),ff=1+Math.floor(d/6);
+      html+=btn("route",{unit:u.id,city:cc.id},"🐫 "+cc.name+" +"+gg+"💰+"+ff+"🌾","gold");
+     }
+     if(!S.cities.some(cc=>cc.owner===S.you&&cc.id!==org.id))
+      html+="<span class='dim'>🐫 нужен второй город для пути</span>";
+    }else html+="<span class='dim'>🐫 встаньте в свой город, чтобы открыть путь</span>";
+   }
+  }
   if(u.type==="settler")html+=btn("found",{unit:u.id},"🏛 Основать город","gold");
   if(u.type==="worker"&&!u.job){
    for(const k in META.impr){const im=META.impr[k];
@@ -747,7 +793,7 @@ function sheetUnits(){
  for(const u of us)
   html+="<div class='row'><span class='grow'>"+(ICON[u.type]||"")+" "+META.units[u.type].name+
    " <span class='dim'>("+u.x+","+u.y+") ❤"+u.hp+" 🦶"+u.mv+
-   (promoLvl(u)?" "+"★".repeat(promoLvl(u)):"")+(u.job?" 🔨":"")+(u.fort?" 🛡":"")+
+   (promoLvl(u)?" "+"★".repeat(promoLvl(u)):"")+(u.job?(u.job==="route"?" 🐫":" 🔨"):"")+(u.fort?" 🛡":"")+
    (u.auto?" 🤖":"")+"</span></span>"+btn("goto",{x:u.x,y:u.y,unit:u.id},"🎯 Выбрать","gold")+"</div>";
  openSheet(html);
 }
@@ -761,6 +807,39 @@ function sheetCities(){
    " <span class='dim'>нас."+c.pop+" · "+(b?"🔨 "+b.name:"простаивает")+"</span></span>"+
    btn("goto",{x:c.x,y:c.y,city:c.id},"🎯")+btn("gocity",{city:c.id},"🏙","gold")+"</div>";
  }
+ openSheet(html);
+}
+function sheetCivics(){
+ const m=S.me;
+ let html="<h2>🎭 Институты и строй<button class='x' data-cmd='close'>×</button></h2>";
+ html+="<div class='line'>Культура: <b>+"+m.culture+"🎭</b> в ход (города: +1, население, храмы, чудеса, столица). Институты изучаются за культуру — как технологии за науку.</div>";
+ if(m.civic&&META.civics[m.civic]){
+  const c=META.civics[m.civic],pc=Math.min(100,Math.round(100*(m.cprogress||0)/c.cost));
+  html+="<div class='row'><span class='grow'>⏳ «"+c.name+"» "+Math.floor(m.cprogress||0)+"/"+c.cost+"</span>"+
+   "<span class='pb'><i style='width:"+pc+"%'></i></span></div>";
+ }
+ const done=m.civics||[];
+ const avail=Object.entries(META.civics).filter(([k,c])=>!done.includes(k)&&c.req.every(r=>done.includes(r)));
+ if(avail.length){
+  html+="<h3>Доступные институты</h3>";
+  for(const[k,c]of avail)
+   html+="<div class='row'><span class='grow'>🎭 <b>"+c.name+"</b> ("+c.cost+"🎭)<br><span class='dim'>"+c.note+"</span></span>"+
+    btn("civic",{civic:k},m.civic===k?"⏳ Изучаем":"Выбрать","gold")+"</div>";
+ }
+ const locked=Object.entries(META.civics).filter(([k,c])=>!done.includes(k)&&!c.req.every(r=>done.includes(r)));
+ if(locked.length)
+  html+="<div class='line dim'>Дальше: "+locked.map(([k,c])=>c.name+" ("+c.cost+"🎭)").join(", ")+"</div>";
+ if(done.length)
+  html+="<div class='line'>Приняты: "+done.map(k=>"«"+META.civics[k].name+"» — "+META.civics[k].note).join("<br>")+"</div>";
+ if(done.includes("polphil")){
+  html+="<h3>🏛 Строй государства</h3>";
+  for(const[g,v]of Object.entries(META.govs)){
+   const cur=m.gov===g;
+   html+="<div class='row'><span class='grow'>"+v[0]+" <b>"+v[1]+"</b> — "+v[2]+(cur?" ✅":"")+"</span>"+
+    (cur?"":btn("gov",{gov:g},"Принять","gold"))+"</div>";
+  }
+  html+="<div class='line dim'>Строй можно менять свободно — бонусы действуют со следующего хода.</div>";
+ }else html+="<div class='line dim'>🏛 Строй государства откроется после института «Политическая философия».</div>";
  openSheet(html);
 }
 function sheetVictory(){
@@ -800,6 +879,8 @@ function sheetSettings(){
    btn("set",{k:"anim"},SET.anim?"Вкл":"Выкл","gold")+"</div>"+
   "<div class='row'><span class='grow'>Миникарта</span>"+
    btn("set",{k:"mm"},SET.mm?"Вкл":"Выкл","gold")+"</div>"+
+  "<div class='row'><span class='grow'>Звуки</span>"+
+   btn("set",{k:"snd"},SET.snd?"🔊 Вкл":"🔇 Выкл","gold")+"</div>"+
   (SOLO?"<div class='row'><span class='grow'>Скачать сохранение партии</span>"+btn("dl",{},"💾")+"</div>":"")+
   "<div class='line dim'>Версия игры: "+(META.version||"—")+"</div>");
 }
@@ -838,6 +919,8 @@ function sheetHelp(){
  "<div class='line'>• 🏕 Лагеря варваров шлют рейдеров волнами; войдите в клетку лагеря — разорение, +20💰.</div>"+
  "<div class='line'>• 🏔 Чудеса природы дают бонусы клетке или городу, охватившему их границами; 🏠 жильё (2 + амбар + 1 у воды) ограничивает рост города.</div>"+
  "<div class='line'>• ⭐ Юниты копят опыт в бою: повышение (до 3) даёт +15% силы; ⬆ улучшение — за золото на своей земле.</div>"+
+ "<div class='line'>• 🐫 Караван (нужно «Денежное обращение»): встаньте в свой город и откройте путь в другой свой город — золото и еда каждый ход, чем дальше города, тем выгоднее. Пунктир на карте — активные пути.</div>"+
+ "<div class='line'>• 🎭 Культура городов изучает институты (кнопка 🎭): бонусы экономике и армии; «Политическая философия» открывает строй — автократия, монархия или республика.</div>"+
  "<div class='line'>• У рабочего зелёным подсвечены клетки для фермы/шахты — тап по зелёной клетке дойти и улучшить.</div>"+
  "<div class='line'>• Лучник и катапульта бьют издалека без ответа (пунктир — цели в радиусе).</div>"+
  "<div class='line'>• Тап по своему городу — управление: производство, покупка, обстрел города.</div>"+
@@ -864,6 +947,7 @@ async function handleCmd(cmd,a){
   if(a.settings)return sheetSettings();
   if(a.units)return sheetUnits();
   if(a.cities)return sheetCities();
+  if(a.civics)return sheetCivics();
   if(a.city!=null)return sheetCity(a.city);
   return;
  }
@@ -884,6 +968,7 @@ async function handleCmd(cmd,a){
  await act(cmd,a);
  if(cmd==="build"||cmd==="buy")sheetCity(a.city);
  if(cmd==="research")sheetTech();
+ if(cmd==="civic"||cmd==="gov")sheetCivics();
 }
 document.addEventListener("click",e=>{
  const t=e.target.closest("[data-cmd]");
