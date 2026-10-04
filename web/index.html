@@ -575,7 +575,8 @@ function ubUI(){
     }else html+="<span class='dim'>🐫 встаньте в свой город, чтобы открыть путь</span>";
    }
   }
-  if(u.type==="settler")html+=btn("found",{unit:u.id},"🏛 Основать город","gold");
+  if(u.type==="settler"){html+=btn("found",{unit:u.id},"🏛 Основать город","gold");
+   if(S.cities.some(cc=>cc.owner===S.you&&cc.x===u.x&&cc.y===u.y))html+=btn("join",{unit:u.id},"👥 Влиться в город");}
   if(u.type==="worker"&&!u.job){
    for(const k in META.impr){const im=META.impr[k];
     if(im.on===t&&S.me.techs.includes(im.req)&&!S.impr[u.x+","+u.y]&&
@@ -687,6 +688,9 @@ function sheetCity(id){
  html+="<div class='row'><span class='grow'>"+(b?"Строится: <b>"+b.name+"</b> ("+c.prod+"/"+b.cost+")":
   "Ничего не строится")+"</span>"+btn("buildlist",{city:id},"🔨 Выбрать","gold")+
   (c.buy!=null?btn("buy",{city:id},"💰 Купить "+c.buy):"")+"</div>";
+ if(c.queue&&c.queue.length)
+  html+="<div class='row'><span class='grow dim'>📋 Далее: "+c.queue.map(q=>{const m=METAItem(q);return m?m.name.split(" (")[0]:q;}).join(" → ")+
+   "</span>"+btn("qclear",{city:id},"✖ Очистить")+"</div>";
  if(!c.struck){
   const targets=S.units.filter(v=>v.owner!==S.you&&rel(v.owner)==="war"&&distC(c.x,c.y,v.x,v.y)<=2);
   if(targets.length){html+="<h3>🎯 Обстрел города (сила "+c.strength+")</h3>";
@@ -701,10 +705,14 @@ function sheetCity(id){
   html+="<div class='line dim'>🕊 Вера города: «"+S.religions[c.religion].name+"»</div>";
  openSheet(html);
 }
+let BQ=false;
 function sheetBuild(id){
  const c=cityById(id);if(!c)return;
  const m=S.me;
- let html="<h2>🔨 "+c.name+": что строить<button class='x' data-cmd='close'>×</button></h2>";
+ const bc=BQ?"queue":"build";
+ let html="<h2>🔨 "+c.name+": что строить<button class='x' data-cmd='close'>×</button></h2>"+
+  "<div class='row'><span class='grow dim'>Режим: "+(BQ?"📋 добавлять в очередь":"заменить текущее")+"</span>"+
+  btn("bq",{city:id},BQ?"Заменять":"В очередь")+"</div>";
  const coastal=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
   .some(d=>S.tiles[c.y+d[1]]&&S.tiles[c.y+d[1]][c.x+d[0]]==="water");
  html+="<h3>Юниты</h3><div class='grid'>";
@@ -713,17 +721,17 @@ function sheetBuild(id){
   if(k==="missionary"&&!m.religion)continue;
   if(META.unit_res[k]&&!(m.res[META.unit_res[k]]>0))continue;
   if(v.naval&&!coastal)continue;
-  html+=btn("build",{city:id,item:"unit:"+k},ICON[k]+" "+v.name+" · "+v.cost+"⚙️");
+  html+=btn(bc,{city:id,item:"unit:"+k},ICON[k]+" "+v.name+" · "+v.cost+"⚙️");
  }
  html+="</div><h3>Здания</h3><div class='grid'>";
  for(const[k,v]of Object.entries(META.blds)){
   if(c.buildings.includes(k)||(v.req&&!m.techs.includes(v.req)))continue;
-  html+=btn("build",{city:id,item:"bld:"+k},v.name+" · "+v.cost+"⚙️");
+  html+=btn(bc,{city:id,item:"bld:"+k},v.name+" · "+v.cost+"⚙️");
  }
  html+="</div><h3>🏛 Чудеса света (нас. ≥3)</h3><div class='grid'>";
  for(const[k,v]of Object.entries(META.wonders)){
   if(v.req&&!m.techs.includes(v.req)||c.pop<3)continue;
-  html+=btn("build",{city:id,item:"wnd:"+k},v.name+" · "+v.cost+"⚙️");
+  html+=btn(bc,{city:id,item:"wnd:"+k},v.name+" · "+v.cost+"⚙️");
  }
  html+="</div><div class='line dim'>Чудо можно построить только один раз во всём мире.</div>";
  openSheet(html);
@@ -961,12 +969,13 @@ async function handleCmd(cmd,a){
  if(cmd==="gocity"){closeSheet();sel={kind:"city",id:a.city};afterState();render();sheetCity(a.city);return;}
  if(cmd==="dl")return downloadSave();
  if(cmd==="buildlist")return sheetBuild(a.city);
+ if(cmd==="bq"){BQ=!BQ;return sheetBuild(a.city);}
  if(cmd==="set"){SET[a.k]=!SET[a.k];saveSet();sheetSettings();return;}
  if(cmd==="restart"){closeSheet();showStart();return;}
  if(cmd==="end")return act("end");
  closeSheet();
  await act(cmd,a);
- if(cmd==="build"||cmd==="buy")sheetCity(a.city);
+ if(cmd==="build"||cmd==="buy"||cmd==="queue"||cmd==="qclear")sheetCity(a.city);
  if(cmd==="research")sheetTech();
  if(cmd==="civic"||cmd==="gov")sheetCivics();
 }
