@@ -167,8 +167,9 @@ def view_main(s, uid):
     if p["news"]:
         text += "\n\n📰 Новости:\n" + "\n".join(p["news"][-8:])
     rows = [[B(text="🪖 Юниты", callback_data="us"), B(text="🏙 Города", callback_data="cs")],
-            [B(text="🔬 Наука", callback_data="ts"), B(text="🤝 Дипломатия", callback_data="dp")],
-            [B(text="🕊 Религия", callback_data="rl"), B(text="🖼 Карта картинкой", callback_data="img")],
+            [B(text="🔬 Наука", callback_data="ts"), B(text="🎭 Институты", callback_data="cv")],
+            [B(text="🤝 Дипломатия", callback_data="dp"), B(text="🕊 Религия", callback_data="rl")],
+            [B(text="🖼 Карта картинкой", callback_data="img")],
             [B(text="🔄 Обновить", callback_data="main")],
             [B(text="✅ Завершить ход", callback_data="end")]]
     return text, kb(rows)
@@ -176,7 +177,8 @@ def view_main(s, uid):
 
 def unit_label(i, u):
     t = E.UNITS[u["type"]]
-    extra = (" 🛡" if u["fort"] else "") + (" 🔨" if u["job"] else "") + (" 🤖" if u.get("auto") else "")
+    extra = (" 🛡" if u["fort"] else "") + (" 🐫" if u["job"] == "route" else " 🔨" if u["job"] else "") \
+        + (" 🤖" if u.get("auto") else "")
     extra += "⭐" * E.promo_level(u)
     ship = " ⛵" if t.get("naval") else (" ⛵на борту" if u.get("aboard") else "")
     return f"{t['name']} #{i} ({u['x']},{u['y']}) ❤{u['hp']} 🦶{u['mv']:g}{extra}{ship}"
@@ -224,6 +226,17 @@ def view_unit(s, uid, i):
         for cid, c in E.preach_targets(s, uid, i):
             rows.append([B(text=f"📿 Проповедовать: {c['name']}", callback_data=f"pr:{i}:{cid}")])
         job += "\n📿 Подойдите к городу вплотную (можно и к чужому) и выберите «Проповедовать»: город примет вашу веру, миссионер расходуется."
+    if u["type"] == "trader":
+        dests = E.route_dests(s, uid, i)
+        for d in dests[:5]:
+            rows.append([B(text=f"🐫 Путь в {d['name']} (+{d['gold']}💰 +{d['food']}🌾)",
+                           callback_data=f"rt:{i}:{d['id']}")])
+        if u["job"] == "route":
+            rid = next((rid for rid, r in s.get("routes", {}).items() if r["uid"] == i), None)
+            if rid:
+                rows.append([B(text="🛑 Отозвать караван", callback_data=f"rc:{rid}")])
+        elif not dests:
+            job += "\n🐫 Поставьте караван в свой город и откройте путь в другой свой город: золото и еда каждый ход."
     if ut.get("range"):
         targets = [(i2, v) for i2, v in s["units"].items()
                    if v["owner"] != uid and E.relation(s, uid, v["owner"]) == "war"
@@ -411,6 +424,36 @@ def view_religion(s, uid):
     return f"{head(s, uid)}\n\n" + "\n".join(lines), kb(rows)
 
 
+def view_civics(s, uid):
+    p = s["players"][uid]
+    cult = E.culture_turn(s, uid)
+    lines = [f"🎭 Культура: {cult} в ход (по городам; институты изучаются за неё)"]
+    rows = []
+    done = p.get("civics", [])
+    cv = p.get("civic")
+    if cv:
+        lines.append(f"⏳ Изучаем: «{E.CIVICS[cv]['name']}» — {p.get('cprogress', 0)}/{E.CIVICS[cv]['cost']}🎭")
+    av = E.available_civics(s, uid)
+    if av:
+        lines.append("\nДоступные институты:")
+        for k, c in av.items():
+            mark = " ⏳" if k == cv else ""
+            rows.append([B(text=f"🎭 {c['name']} ({c['cost']}🎭){mark}", callback_data=f"ci:{k}")])
+    if done:
+        lines.append("\nПриняты: " + ", ".join(f"«{E.CIVICS[k]['name']}»" for k in done))
+    if "polphil" in done:
+        lines.append("\nСтрой государства:")
+        for g, (em, nm, note) in E.GOVS.items():
+            mark = " ✅" if p.get("gov") == g else ""
+            rows.append([B(text=f"{em} {nm}: {note}{mark}", callback_data=f"gv:{g}")])
+        if not p.get("gov"):
+            lines.append("Строй ещё не выбран.")
+    else:
+        lines.append("\n🏛 Строй государства откроется после института «Политическая философия».")
+    rows.append(back())
+    return f"{head(s, uid)}\n\n" + "\n".join(lines), kb(rows)
+
+
 async def show(cb, v):
     try:
         await cb.message.edit_text(v[0], reply_markup=v[1])
@@ -536,7 +579,11 @@ RULES = ("📜 Правила\n\n"
          "• 🏠 Жильё ограничивает рост: население не растёт выше жилья (2 + амбар + 1 у воды).\n"
          "• ⬆ Юниты улучшаются за золото на своей территории: Воин→Мечник, Лучник→Арбалетчик, "
          "Всадник→Рыцарь (нужны технология и ресурс).\n"
-         "• ⭐ Юниты копят опыт в бою: каждые 6 опыта — уровень повышения (до 3, +15% силы за уровень).\n\n"
+         "• ⭐ Юниты копят опыт в бою: каждые 6 опыта — уровень повышения (до 3, +15% силы за уровень).\n"
+         "• 🐫 Караван (нужно «Денежное обращение»): из своего города откройте путь в другой свой город — "
+         f"золото и еда каждый ход на {E.TRADE_TURNS} ходов, чем дальше города, тем выгоднее.\n"
+         "• 🎭 Культура городов изучает институты (🎭 Институты в меню): бонусы к экономике и армии, "
+         "а «Политическая философия» открывает выбор строя — автократия, монархия или республика.\n\n"
          f"🏆 Победа: 1) остаться последним; 2) изучить все технологии; 3) иметь больше всех очков после {E.MAX_TURNS} хода.\n"
          "Очки: города, население, технологии, чудеса, золото.")
 
@@ -881,8 +928,26 @@ async def on_cb(cb: CallbackQuery):
             toast = E.preach(s, uid, a[1], a[2])
             save(chat, s)
             v = view_units(s, uid)
+        elif cmd == "rt":
+            toast = E.start_route(s, uid, a[1], a[2])
+            save(chat, s)
+            v = view_unit(s, uid, a[1])
+        elif cmd == "rc":
+            toast = E.cancel_route(s, uid, a[1])
+            save(chat, s)
+            v = view_units(s, uid)
         elif cmd == "rl":
             v = view_religion(s, uid)
+        elif cmd == "cv":
+            v = view_civics(s, uid)
+        elif cmd == "ci":
+            toast = E.set_civic(s, uid, a[1])
+            save(chat, s)
+            v = view_civics(s, uid)
+        elif cmd == "gv":
+            toast = E.set_gov(s, uid, a[1])
+            save(chat, s)
+            v = view_civics(s, uid)
         elif cmd == "rf":
             toast, public = E.found_religion(s, uid, a[1])
             save(chat, s)

@@ -10,6 +10,7 @@ AI_NAMES = ["Цезарь", "Клеопатра", "Ганнибал", "Алек�
 TECH_ORDER = ["agriculture", "mining", "pottery", "wheel", "bronze", "writing", "archery", "currency",
               "iron", "riding", "sailing", "math", "philosophy"]
 BELIEF_ORDER = ["wisdom", "fertility", "wealth", "fervor"]
+CIVIC_ORDER = ["code", "craft", "milt", "games", "polphil", "diplom"]
 # характер ИИ по сложности: шанс объявить войну за ход, нужная армия, шанс принять мир, расширение
 WAR_CHANCE = {"easy": 0.0, "normal": 0.07, "hard": 0.13}
 ARMY_MIN = {"easy": 99, "normal": 4, "hard": 3}
@@ -490,6 +491,27 @@ def do_missionary(s, k, uid):
             return
 
 
+def do_trader(s, k, uid):
+    """Караван: идёт в ближайший свой город и открывает путь в самый дальний."""
+    u = s["units"].get(uid)
+    if not u or u["owner"] != k or u["type"] != "trader" or u["job"]:
+        return
+    mine = {cid: c for cid, c in s["cities"].items() if c["owner"] == k}
+    if len(mine) < 2:
+        return
+    origin = E.city_at(s, u["x"], u["y"])
+    if not origin or origin[1]["owner"] != k:
+        home = min(mine.values(), key=lambda c: E.dist((u["x"], u["y"]), (c["x"], c["y"])))
+        _go(s, k, uid, (home["x"], home["y"]), False)
+        return
+    dest = max(((cid, c) for cid, c in mine.items() if cid != origin[0]),
+               key=lambda t: E.dist((origin[1]["x"], origin[1]["y"]), (t[1]["x"], t[1]["y"])))
+    try:
+        E.start_route(s, k, uid, dest[0])
+    except E.GameError:
+        pass
+
+
 def _win_prob(a, d, ahp, dhp):
     """Вероятность победы атакующего (сила a против защиты d, здоровье ahp и dhp): раунды по 3 урона."""
     p = a / (a + d)
@@ -828,6 +850,9 @@ def _choose(s, k, c, ctx):
         return "unit:settler", "settler"
     if "unit:worker" in items and ctx["workers"] + prod.get("worker", 0) < ctx["cities"]:
         return "unit:worker", "worker"
+    if ("unit:trader" in items and ctx["cities"] >= 2
+            and ctx["traders"] + prod.get("trader", 0) < min(4, ctx["cities"] - 1)):
+        return "unit:trader", "trader"
     if "unit:scout" in items and s["turn"] < 25 and ctx["scouts"] + prod.get("scout", 0) == 0:
         return "unit:scout", "scout"
     order = (["granary"] if c["pop"] >= 2 else []) + ["library", "temple", "market", "workshop"]
@@ -864,6 +889,7 @@ def _cities(s, k):
                 land_sites += (x, y) in land
     ctx = {"cities": len(mine), "mil": _mil(s, k), "sites": sites, "land_sites": land_sites, "wonders": set(),
            "workers": sum(1 for u in units if u["owner"] == k and u["type"] == "worker"),
+           "traders": sum(1 for u in units if u["owner"] == k and u["type"] == "trader"),
            "scouts": sum(1 for u in units if u["owner"] == k and u["type"] == "scout"),
            "settlers": sum(1 for u in units if u["owner"] == k and u["type"] == "settler"),
            "missionaries": sum(1 for u in units if u["owner"] == k and u["type"] == "missionary"),
@@ -880,7 +906,7 @@ def _cities(s, k):
         if c["build"]:
             kind = c["build"].split(":")[1] if c["build"].startswith("unit:") else None
             tag = {"settler": "settler", "worker": "worker", "scout": "scout",
-                   "missionary": "missionary", "galley": "galley",
+                   "missionary": "missionary", "galley": "galley", "trader": "trader",
                    "catapult": "catapult"}.get(kind, "mil" if kind else None)
             if tag:
                 ctx["prod"][tag] = ctx["prod"].get(tag, 0) + 1
@@ -926,6 +952,14 @@ def play_turn(s, k):
             av = E.available_techs(s, k)
             if av:
                 E.set_research(s, k, min(av, key=lambda t: TECH_ORDER.index(t) if t in TECH_ORDER else 99))
+        if not p.get("civic"):                                   # институты за культуру
+            av = E.available_civics(s, k)
+            if av:
+                E.set_civic(s, k, min(av, key=lambda t: CIVIC_ORDER.index(t) if t in CIVIC_ORDER else 99))
+        if not p.get("gov") and E.has_civic(s, k, "polphil"):    # строй: война — автократия, иначе республика
+            at_war = any(E.relation(s, k, o) == "war" and q["alive"]
+                         for o, q in s["players"].items() if o != k)
+            E.set_gov(s, k, "autocracy" if at_war else "republic")
         _diplomacy(s, k, events)
         if E.can_found_religion(s, k):
             try:
@@ -942,6 +976,9 @@ def play_turn(s, k):
         for uid in [i for i, u in s["units"].items() if u["owner"] == k and u["type"] == "missionary"]:
             if uid in s["units"]:
                 do_missionary(s, k, uid)
+        for uid in [i for i, u in s["units"].items() if u["owner"] == k and u["type"] == "trader"]:
+            if uid in s["units"]:
+                do_trader(s, k, uid)
         do_military(s, k)
         _cities(s, k)
         _city_states(s, k)

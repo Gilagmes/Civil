@@ -3,7 +3,7 @@
 import random
 
 VER = 2                # версия формата сохранений
-GAME_VERSION = "3.3"   # версия игры (README/CHANGELOG)
+GAME_VERSION = "3.4"   # версия игры (README/CHANGELOG)
 W, H = 14, 10          # размер карты
 MAX_PLAYERS = 6
 MAX_TURNS = 60         # после этого хода побеждает лидер по очкам
@@ -21,6 +21,7 @@ IMPR = {
     "mine": {"name": "Шахта", "emoji": "🪨", "req": "mining", "on": "hills", "f": 0, "p": 2},
 }
 JOB_TURNS = 3
+TRADE_TURNS = 12       # длительность торгового пути (ходов)
 SQUARES = ["🟥", "🟦", "🟩", "🟨", "🟪", "🟧"]   # города игроков
 CIRCLES = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟠"]   # юниты игроков
 
@@ -73,6 +74,7 @@ UNITS = {
     "missionary": {"name": "Миссионер", "cost": 20, "att": 0, "def": 0, "moves": 2, "vision": 2, "req": "pottery"},
     "galley": {"name": "Галера", "cost": 22, "att": 3, "def": 3, "moves": 3, "vision": 3, "req": "sailing",
                "naval": True, "cap": 2},
+    "trader": {"name": "Караван", "cost": 20, "att": 0, "def": 1, "moves": 2, "vision": 2, "req": "currency"},
 }
 RESOURCES = {"horses": {"emoji": "🐎", "name": "Лошади", "on": ["plains"]},
              "iron": {"emoji": "🔩", "name": "Железо", "on": ["hills"]},
@@ -97,6 +99,20 @@ BELIEFS = {"fertility": ("🌾", "Плодородие", "+2🌾 в города
            "fervor": ("🎭", "Рвение", "+2🎭 культуры в городах верующих")}
 RELIGION_NAMES = ["Культ Солнца", "Путь Звезды", "Вера Древа", "Братство Океана"]
 FAITH_NEED, SPREAD_RANGE = 30, 4
+
+CIVICS = {   # гражданские институты: изучаются за культуру 🎭 (как в Civ 6)
+    "code":    {"name": "Устройство государства", "cost": 20, "req": [], "note": "+1💰 в столице"},
+    "craft":   {"name": "Ремесло", "cost": 40, "req": ["code"], "note": "улучшения строятся на ход быстрее"},
+    "milt":    {"name": "Военная традиция", "cost": 40, "req": ["code"], "note": "×2 опыт юнитов в бою"},
+    "games":   {"name": "Игры и зрелища", "cost": 60, "req": ["craft"], "note": "+2🎭 и +1🏠 в каждом городе"},
+    "polphil": {"name": "Политическая философия", "cost": 60, "req": ["milt", "games"], "note": "открывает смену строя"},
+    "diplom":  {"name": "Дипломатия", "cost": 80, "req": ["polphil"], "note": "+2💰 в ход с союзных городов-государств"},
+}
+GOVS = {   # строй государства: выбирается после «Политической философии», менять можно свободно
+    "autocracy": ("👑", "Автократия", "+1⚙️ в каждом городе"),
+    "monarchy": ("🏰", "Монархия", "защита в городах ×1.25, +1💰 в каждом городе"),
+    "republic": ("🏛", "Республика", "+2🔬 и +1🎭 в каждом городе"),
+}
 
 BUILDINGS = {
     "granary": {"name": "Амбар (+2🌾)", "cost": 20, "req": "pottery"},
@@ -380,7 +396,8 @@ def add_player(s, uid, name):
         raise GameError("Свободных мест нет")
     s["players"][k] = {"name": name, "color": len(s["players"]), "alive": True,
                        "ready": False, "techs": [], "research": None, "progress": 0,
-                       "gold": START_GOLD, "seen": [0] * (W * H), "news": []}
+                       "gold": START_GOLD, "seen": [0] * (W * H), "news": [],
+                       "civics": [], "civic": None, "cprogress": 0, "gov": None}
 
 
 def difficulty(s):
@@ -721,6 +738,99 @@ def all_ready(s):
     return all(p["ready"] for p in s["players"].values() if p["alive"])
 
 
+# ---------- торговые пути ----------
+
+def route_yield(s, r):
+    """(золото, еда) в ход владельцу пути: тем дальше города, тем выгоднее."""
+    a, b = s["cities"].get(r["a"]), s["cities"].get(r["b"])
+    if not a or not b:
+        return 0, 0
+    d = dist((a["x"], a["y"]), (b["x"], b["y"]))
+    return 2 + d // 3, 1 + d // 6
+
+
+def route_dests(s, owner, uid):
+    """Города, куда караван может открыть путь (стоит в своём городе, не в пути)."""
+    u = s["units"].get(uid)
+    if not u or u["owner"] != owner or u["type"] != "trader" or u["job"]:
+        return []
+    origin = city_at(s, u["x"], u["y"])
+    if not origin or origin[1]["owner"] != owner:
+        return []
+    out = []
+    for cid, c in s["cities"].items():
+        if c["owner"] == owner and cid != origin[0]:
+            g, f = route_yield(s, {"a": origin[0], "b": cid})
+            out.append({"id": cid, "name": c["name"], "gold": g, "food": f})
+    return sorted(out, key=lambda d: -(d["gold"] + d["food"]))
+
+
+def start_route(s, owner, uid, cid):
+    u = own_unit(s, owner, uid)
+    if u["type"] != "trader":
+        raise GameError("Торговый путь прокладывает только караван")
+    if u["job"]:
+        raise GameError("Караван уже в пути")
+    origin = city_at(s, u["x"], u["y"])
+    if not origin or origin[1]["owner"] != owner:
+        raise GameError("Караван должен стоять в вашем городе")
+    dest = own_city(s, owner, cid)
+    if cid == origin[0]:
+        raise GameError("Выберите другой город — путь открывается между разными городами")
+    rid = _new_id(s)
+    r = {"owner": owner, "a": origin[0], "b": cid, "left": TRADE_TURNS, "uid": uid}
+    s.setdefault("routes", {})[rid] = r
+    u["job"], u["left"], u["mv"] = "route", TRADE_TURNS, 0
+    g, f = route_yield(s, r)
+    return f"🐫 Путь открыт: {origin[1]['name']} → {dest['name']} (+{g}💰 +{f}🌾 в ход, {TRADE_TURNS} ходов)"
+
+
+def cancel_route(s, owner, rid):
+    r = s.get("routes", {}).get(str(rid))
+    if not r or r["owner"] != owner:
+        raise GameError("Такого торгового пути нет")
+    u = s["units"].get(r["uid"])
+    if u:
+        u["job"], u["left"] = None, 0
+    del s["routes"][rid]
+    return "🐫 Караван отозван — путь закрыт"
+
+
+# ---------- гражданские институты и строй ----------
+
+def has_civic(s, owner, key):
+    pl = s["players"].get(owner)
+    return bool(pl) and key in pl.get("civics", [])
+
+
+def culture_turn(s, owner):
+    """Культура 🎭 в ход: сумма по городам (c['culture'] обновляется каждый ход)."""
+    return sum(c.get("culture", 0) for c in s["cities"].values() if c["owner"] == owner)
+
+
+def available_civics(s, owner):
+    pl = s["players"][owner]
+    done = pl.get("civics", [])
+    return {k: c for k, c in CIVICS.items() if k not in done and all(r in done for r in c["req"])}
+
+
+def set_civic(s, owner, key):
+    if key not in available_civics(s, owner):
+        raise GameError("Этот институт пока недоступен")
+    s["players"][owner]["civic"] = key
+    return f"🎭 Начинаем: «{CIVICS[key]['name']}» ({CIVICS[key]['cost']}🎭)"
+
+
+def set_gov(s, owner, gov):
+    pl = s["players"][owner]
+    if "polphil" not in pl.get("civics", []):
+        raise GameError("Сначала изучите институт «Политическая философия»")
+    if gov not in GOVS:
+        raise GameError("Неизвестный строй")
+    pl["gov"] = gov
+    return f"{GOVS[gov][0]} Новый строй: {GOVS[gov][1]} — {GOVS[gov][2]}"
+
+
 def fortify(s, owner, uid):
     u = own_unit(s, owner, uid)
     if UNITS[u["type"]]["def"] == 0:
@@ -771,8 +881,9 @@ def start_job(s, owner, uid, job):
         raise GameError("Здесь лагерь варваров — сначала разорите его юнитом")
     if u["mv"] <= 0:
         raise GameError("Юнит уже ходил в этом ходу")
-    u["job"], u["left"], u["mv"] = job, JOB_TURNS, 0
-    return f"Работа началась: {im['name']} ({JOB_TURNS} хода)"
+    turns = JOB_TURNS - (1 if has_civic(s, owner, "craft") else 0)   # «Ремесло»: на ход быстрее
+    u["job"], u["left"], u["mv"] = job, turns, 0
+    return f"Работа началась: {im['name']} ({turns} хода)"
 
 
 def move_unit(s, owner, uid, d):
@@ -880,7 +991,7 @@ def _ship_attack(s, owner, uid, u, x, y, others, town, water):
         if not ships:
             return "Здесь нет кораблей"
         did, d = max(ships, key=lambda t: UNITS[t[1]["type"]]["def"] * t[1]["hp"])
-        if not _fight(ut["att"] * promo_mult(u), UNITS[d["type"]]["def"] * promo_mult(d), u, d):
+        if not _fight(s, ut["att"] * promo_mult(u), UNITS[d["type"]]["def"] * promo_mult(d), u, d):
             _kill_unit(s, uid)
             _news(s, d["owner"], f"🛡 Ваша галера ({x},{y}) отбила атаку игрока {aname}")
             return "⚔️ Ваш корабль потоплен"
@@ -896,7 +1007,7 @@ def _ship_attack(s, owner, uid, u, x, y, others, town, water):
             return "⚔️ Береговые юниты уничтожены"
         raise GameError("С моря город без защитников не захватить — высадите войска")
     did, d = max(mil, key=lambda t: UNITS[t[1]["type"]]["def"] * t[1]["hp"])
-    if not _fight(ut["att"] * promo_mult(u), _defense(s, d, x, y, town, u["type"]), u, d):
+    if not _fight(s, ut["att"] * promo_mult(u), _defense(s, d, x, y, town, u["type"]), u, d):
         _kill_unit(s, uid)
         _news(s, d["owner"], f"🛡 Ваш {UNITS[d['type']]['name']} ({x},{y}) отбил обстрел с моря")
         return "⚔️ Ваш корабль потоплен береговой обороной"
@@ -905,15 +1016,16 @@ def _ship_attack(s, owner, uid, u, x, y, others, town, water):
     return "⚔️ Обстрел удался: защитник уничтожен"
 
 
-def _fight(a, d, au, du):
+def _fight(s, a, d, au, du):
     while au["hp"] > 0 and du["hp"] > 0:
         if random.random() < a / (a + d):
             du["hp"] -= 3
         else:
             au["hp"] -= 3
-    au["xp"] = au.get("xp", 0) + (5 if du["hp"] <= 0 else 3)   # опыт за бой
+    xm = lambda unit: 2 if has_civic(s, unit.get("owner"), "milt") else 1   # «Военная традиция»: ×2 опыт
+    au["xp"] = au.get("xp", 0) + (5 if du["hp"] <= 0 else 3) * xm(au)   # опыт за бой
     if du["hp"] > 0:
-        du["xp"] = du.get("xp", 0) + 3
+        du["xp"] = du.get("xp", 0) + 3 * xm(du)
     return au["hp"] > 0
 
 
@@ -921,7 +1033,7 @@ def _attack_cs(s, owner, uid, u, cs):
     csid, c = cs
     u["mv"] = 0
     aname = s["players"][owner]["name"]
-    if not _fight(UNITS[u["type"]]["att"] * promo_mult(u), (4 + s["turn"] // 10) * 1.25, u, {"hp": UNIT_HP}):
+    if not _fight(s, UNITS[u["type"]]["att"] * promo_mult(u), (4 + s["turn"] // 10) * 1.25, u, {"hp": UNIT_HP}):
         del s["units"][uid]
         return f"⚔️ Ваш юнит погиб у стен «{c['name']}»"
     del s["cstates"][csid]
@@ -948,6 +1060,8 @@ def _defense(s, d, x, y, c, atype):
             dstr *= 1.5
         if city_level(c[1]) >= 3:
             dstr *= 1.15
+        if s["players"][c[1]["owner"]].get("gov") == "monarchy":
+            dstr *= 1.25          # «Монархия»: города держат оборону лучше
     return dstr
 
 
@@ -963,7 +1077,7 @@ def _attack(s, owner, uid, u, x, y, enemy_units, c):
         did, d = max(mil, key=lambda t: UNITS[t[1]["type"]]["def"] * t[1]["hp"])
         dstr = _defense(s, d, x, y, c, u["type"])
         dname = UNITS[d["type"]]["name"]
-        if not _fight(ut["att"] * promo_mult(u), dstr, u, d):
+        if not _fight(s, ut["att"] * promo_mult(u), dstr, u, d):
             del s["units"][uid]
             _news(s, d["owner"], f"🛡 Ваш {dname} ({x},{y}) отбил атаку игрока {aname}")
             return "⚔️ Ваш юнит погиб в бою"
@@ -1026,7 +1140,7 @@ def ranged_attack(s, owner, uid, x, y):
     dmg = _ranged_dmg(ut["att"] * promo_mult(u), _defense(s, d, x, y, c, u["type"]))
     d["hp"] -= dmg
     u["mv"] = 0
-    u["xp"] = u.get("xp", 0) + (4 if d["hp"] <= 0 else 2)
+    u["xp"] = u.get("xp", 0) + (4 if d["hp"] <= 0 else 2) * (2 if has_civic(s, u.get("owner"), "milt") else 1)
     dname = UNITS[d["type"]]["name"]
     aname = s["players"][owner]["name"]
     if d["hp"] <= 0:
@@ -1038,7 +1152,7 @@ def ranged_attack(s, owner, uid, x, y):
         _news(s, d["owner"], f"💀 Ваш {dname} ({x},{y}) уничтожен обстрелом игрока {aname}")
     else:
         msg = f"🎯 Обстрел: {dname} −{dmg}❤ (осталось {d['hp']})"
-        d["xp"] = d.get("xp", 0) + 2
+        d["xp"] = d.get("xp", 0) + 2 * (2 if has_civic(s, d.get("owner"), "milt") else 1)
         _news(s, d["owner"], f"🎯 Ваш {dname} ({x},{y}) обстрелен игроком {aname}: −{dmg}❤")
     return msg
 
@@ -1059,7 +1173,7 @@ def city_strike(s, owner, cid, x, y):
     d["hp"] -= dmg
     c["struck"] = s["turn"]
     if d["hp"] > 0:
-        d["xp"] = d.get("xp", 0) + 2
+        d["xp"] = d.get("xp", 0) + 2 * (2 if has_civic(s, d.get("owner"), "milt") else 1)
     dname = UNITS[d["type"]]["name"]
     if d["hp"] <= 0:
         del s["units"][did]
@@ -1179,6 +1293,16 @@ def city_yields(s, c):
         sci += 1
     if "philosophy" in pl["techs"]:
         sci += 1
+    civ = pl.get("civics", [])
+    if "code" in civ and c["capital"]:
+        gold += 1
+    gov = pl.get("gov")
+    if gov == "autocracy":
+        p += 1
+    elif gov == "monarchy":
+        gold += 1
+    elif gov == "republic":
+        sci += 2
     if road_connected(s, c):
         gold += ROAD_LINK_GOLD
     my_cid = next((i for i, cc in s["cities"].items() if cc is c), None)
@@ -1200,7 +1324,8 @@ def food_need(c):
 
 def housing(s, c):
     """Жильё: рост населения остановлен на лимите (как в Civ 6)."""
-    return 2 + (2 if "granary" in c["buildings"] else 0) + (1 if coastal(s, c) else 0)
+    return (2 + (2 if "granary" in c["buildings"] else 0) + (1 if coastal(s, c) else 0)
+            + (1 if "games" in s["players"][c["owner"]].get("civics", []) else 0))
 
 
 def score(s, k):
@@ -1424,7 +1549,7 @@ def _barb_move(s, uid, u, nxt):
     if mil:
         did, d = max(mil, key=lambda t: UNITS[t[1]["type"]]["def"] * t[1]["hp"])
         dname = UNITS[d["type"]]["name"]
-        if not _fight(UNITS[u["type"]]["att"] * promo_mult(u), _defense(s, d, x, y, c, u["type"]), u, d):
+        if not _fight(s, UNITS[u["type"]]["att"] * promo_mult(u), _defense(s, d, x, y, c, u["type"]), u, d):
             del s["units"][uid]
             _news(s, d["owner"], f"🛡 Ваш {dname} ({x},{y}) отбил нападение варваров")
             return False
@@ -1535,8 +1660,11 @@ def process_turn(s):
             c["food"] = min(c["food"], food_need(c) - 1)   # рост сдержан жильём
         c["prod"] += p
         old_r = border_radius(c)
+        pl_o = s["players"][owner]
         c["culture"] = (c.get("culture", 0) + 1 + c["pop"] // 2 + (2 if "temple" in c["buildings"] else 0)
-                        + 3 * len(c["wonders"]) + (1 if c["capital"] else 0))
+                        + 3 * len(c["wonders"]) + (1 if c["capital"] else 0)
+                        + (2 if "games" in pl_o.get("civics", []) else 0)
+                        + (1 if pl_o.get("gov") == "republic" else 0))
         if _belief(s, c) == "fervor":
             c["culture"] = c.get("culture", 0) + 2
         if border_radius(c) > old_r:
@@ -1564,6 +1692,28 @@ def process_turn(s):
                 s["wonders"][key] = cid
                 pub.append(f"🏛 {s['players'][owner]['name']} построил чудо света «{nm}» в городе {c['name']}!")
             _news(s, owner, f"🔨 {c['name']}: готово — {nm}")
+    for rid, r in list(s.get("routes", {}).items()):        # торговые пути
+        owner = r["owner"]
+        a, b = s["cities"].get(r["a"]), s["cities"].get(r["b"])
+        u = s["units"].get(r["uid"])
+        if not a or not b or not u or owner not in gold_total:
+            if u:
+                u["job"], u["left"] = None, 0
+            s["routes"].pop(rid, None)
+            if a:
+                _news(s, owner, f"🐫 Торговый путь из {a['name']} закрылся")
+            continue
+        g, f = route_yield(s, r)
+        gold_total[owner] += g
+        if a["pop"] < housing(s, a):
+            a["food"] += f
+        r["left"] -= 1
+        u["left"] = r["left"]
+        if r["left"] <= 0:
+            del s["routes"][rid]
+            u["job"], u["left"] = None, 0
+            u["x"], u["y"] = a["x"], a["y"]
+            _news(s, owner, f"🐫 Караван вернулся в {a['name']} — путь завершён, можно открыть новый")
     for csid, cs in s.get("cstates", {}).items():
         for k in list(cs["inf"]):
             cs["inf"][k] = max(0, cs["inf"][k] - 1)
@@ -1576,7 +1726,7 @@ def process_turn(s):
             cs["ally"] = ally
         if ally and s["players"][ally]["alive"]:
             if cs["kind"] == "trade":
-                gold_total[ally] += 3
+                gold_total[ally] += 3 + (2 if has_civic(s, ally, "diplom") else 0)
             elif cs["kind"] == "science":
                 sci_total[ally] += 3
             elif cs["kind"] == "military" and s["turn"] % 8 == 0:
@@ -1602,6 +1752,14 @@ def process_turn(s):
             gold_total[rel["founder"]] += foreign
     for k, pl in s["players"].items():
         pl["gold"] += gold_total[k]
+        if pl["alive"]:                                  # культура → институты
+            pl["cprogress"] = pl.get("cprogress", 0) + culture_turn(s, k)
+            cv = pl.get("civic")
+            if cv and cv in CIVICS and pl["cprogress"] >= CIVICS[cv]["cost"]:
+                pl["cprogress"] -= CIVICS[cv]["cost"]
+                pl.setdefault("civics", []).append(cv)
+                pl["civic"] = None
+                _news(s, k, f"🎭 Институт принят: «{CIVICS[cv]['name']}» — {CIVICS[cv]['note']}")
         if pl["alive"] and pl["research"]:
             pl["progress"] += sci_total[k]
             t = TECHS[pl["research"]]
@@ -1613,7 +1771,7 @@ def process_turn(s):
         elif pl["alive"] and available_techs(s, k):
             _news(s, k, "🔬 Наука простаивает — выберите технологию!")
     for u in s["units"].values():
-        if u["job"]:
+        if u["job"] and u["job"] != "route":      # «route» обсчитывается в блоке торговых путей
             u["left"] -= 1
             if u["left"] <= 0:
                 if u["job"] == "road":
@@ -1751,12 +1909,18 @@ def view(s, k):
         "units": [{"id": i, **u} for i, u in s["units"].items()
                   if (u["x"], u["y"]) in vis or u["owner"] == k],
         "cstates": [{"id": i, "name": c["name"], "x": c["x"], "y": c["y"], "kind": c["kind"],
-                     "inf": c["inf"].get(k, 0), "ally": c.get("ally"), "war": k in c["war"]}
+                    "inf": c["inf"].get(k, 0), "ally": c.get("ally"), "war": k in c["war"]}
                     for i, c in s.get("cstates", {}).items() if known(c["x"], c["y"])],
+        "routes": [{"id": rid, "a": r["a"], "b": r["b"], "left": r["left"], "owner": r["owner"],
+                    "uid": r["uid"], "yields": list(route_yield(s, r))}
+                    for rid, r in s.get("routes", {}).items()],
         "me": {**{key: pl[key] for key in ("gold", "techs", "research", "progress", "ready")},
                "faith": pl.get("faith", 0), "religion": pl.get("religion"),
                "score": score(s, k), "news": pl["news"], "res": resources_of(s, k),
-               "can_religion": can_found_religion(s, k)},
+               "can_religion": can_found_religion(s, k),
+               "civics": pl.get("civics", []), "civic": pl.get("civic"),
+               "cprogress": pl.get("cprogress", 0), "gov": pl.get("gov"),
+               "culture": culture_turn(s, k)},
         "players": {pk: {"name": p["name"], "color": p["color"], "alive": p["alive"],
                          "ai": bool(p.get("ai")), "score": score(s, pk), "ready": p["ready"]}
                     for pk, p in s["players"].items()},

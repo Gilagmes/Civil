@@ -62,6 +62,9 @@ def _meta():
         "wonders": {k: {"name": v["name"], "cost": v["cost"], "req": v["req"]}
                     for k, v in E.WONDERS.items()},
         "beliefs": {k: list(v) for k, v in E.BELIEFS.items()},
+        "civics": E.CIVICS,
+        "govs": {k: list(v) for k, v in E.GOVS.items()},
+        "trade_turns": E.TRADE_TURNS,
         "levels": E.CITY_LEVELS,
         "cs_kinds": E.CS_KINDS,
         "cs_ally_min": E.CS_ALLY_MIN, "cs_gift": E.CS_GIFT, "cs_gift_inf": E.CS_GIFT_INF,
@@ -188,6 +191,16 @@ def setup(app, *, token, load, save, run_turn, bot=None, solo=False):
                 msg = E.fortify(s, uid, str(body["unit"]))
             elif a == "disband":
                 msg = E.disband(s, uid, str(body["unit"]))
+            elif a == "route":
+                u = E.own_unit(s, uid, str(body["unit"]))
+                u["auto"] = False
+                msg = E.start_route(s, uid, str(body["unit"]), str(body["city"]))
+            elif a == "routecancel":
+                msg = E.cancel_route(s, uid, str(body["route"]))
+            elif a == "civic":
+                msg = E.set_civic(s, uid, str(body["civic"]))
+            elif a == "gov":
+                msg = E.set_gov(s, uid, str(body["gov"]))
             elif a == "auto":
                 import ai
                 u = E.own_unit(s, uid, str(body["unit"]))
