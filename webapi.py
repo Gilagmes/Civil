@@ -95,6 +95,7 @@ def setup(app, *, token, load, save, run_turn, bot=None, solo=False):
             s = load("solo")
             if not s or not s["started"]:
                 raise _fail(web.HTTPNotFound, "Игра не создана")
+            E.sync_size(s)
             return "me", s
         d = check_init_data(request.headers.get("X-Init-Data", ""), token)
         if not d:
@@ -106,6 +107,7 @@ def setup(app, *, token, load, save, run_turn, bot=None, solo=False):
         s = load(chat)
         if not s or not s["started"]:
             raise _fail(web.HTTPNotFound, "В этом чате нет идущей игры")
+        E.sync_size(s)
         if uid not in s["players"]:
             raise _fail(web.HTTPForbidden, "Вы не участник этой игры")
         return uid, s
@@ -131,7 +133,10 @@ def setup(app, *, token, load, save, run_turn, bot=None, solo=False):
         except ValueError:
             body = {}
         import ai
-        s = E.new_game("me")
+        size = body.get("size", E.DEFAULT_SIZE)
+        if size not in E.MAP_SIZES:
+            raise _fail(web.HTTPBadRequest, "Неверный размер карты")
+        s = E.new_game("me", size=size)
         E.add_player(s, "me", str(body.get("name") or "Вы")[:24])
         n = max(1, min(3, int(body.get("ais", 1))))
         used = {p["name"] for p in s["players"].values()}

@@ -3,8 +3,23 @@
 import random
 
 VER = 2                # версия формата сохранений
-GAME_VERSION = "3.6"   # версия игры (README/CHANGELOG)
-W, H = 14, 10          # размер карты
+GAME_VERSION = "3.7"   # версия игры (README/CHANGELOG)
+W, H = 14, 10          # размер карты (меняется set_size/sync_size под текущую партию)
+MAP_SIZES = {"small": (14, 10), "standard": (20, 14), "large": (28, 18)}
+DEFAULT_SIZE = "small"
+
+
+def set_size(w, h):
+    """Задаёт размеры карты для текущей партии (модульные W, H)."""
+    global W, H
+    W, H = int(w), int(h)
+
+
+def sync_size(s):
+    """Подгоняет W, H под загруженное сохранение."""
+    if s and s.get("map"):
+        set_size(len(s["map"][0]), len(s["map"]))
+
 MAX_PLAYERS = 6
 MAX_TURNS = 60         # после этого хода побеждает лидер по очкам
 UNIT_HP = 10
@@ -354,8 +369,13 @@ def refresh(s, k):
 
 # ---------- создание игры ----------
 
-def new_game(owner, seed=None):
+def new_game(owner, seed=None, size=None):
+    if size is not None:
+        if size not in MAP_SIZES:
+            raise GameError("Размер карты: small, standard или large")
+        set_size(*MAP_SIZES[size])
     rng = random.Random(seed)
+    area = W * H / 140.0                      # во сколько раз карта больше базовой
     rows = []
     for y in range(H):
         row = []
@@ -367,16 +387,16 @@ def new_game(owner, seed=None):
                 row.append(rng.choices(["plains", "forest", "hills"], [5, 3, 2])[0])
         rows.append(row)
     land = [f"{x},{y}" for y in range(H) for x in range(W) if rows[y][x] != "water"]
-    huts = rng.sample(land, min(HUT_COUNT, len(land)))
+    huts = rng.sample(land, min(round(HUT_COUNT * area), len(land)))
     res = {}
     for name, n in RES_COUNTS.items():
         cands = [k for k in land if rows[int(k.split(",")[1])][int(k.split(",")[0])] in RESOURCES[name]["on"]
                  and k not in res]
-        for k in rng.sample(cands, min(n, len(cands))):
+        for k in rng.sample(cands, min(round(n * area), len(cands))):
             res[k] = name
     nwonders = {}
     free = [k for k in land if k not in res and k not in huts]
-    for key in rng.sample(sorted(NWONDERS), min(3, len(free))):
+    for key in rng.sample(sorted(NWONDERS), min(3 if area < 2 else len(NWONDERS), len(free))):
         pos = rng.choice(free)
         free.remove(pos)
         nwonders[pos] = key
@@ -467,7 +487,7 @@ def start(s, seed=None):
                                             "inf": {}, "war": [], "ally": None}
                 break
     s["huts"] = [h for h in s["huts"] if tuple(map(int, h.split(","))) not in placed]
-    target = max(2, min(4, n + 1))
+    target = round(max(2, min(4, n + 1)) * max(1.0, W * H / 140.0) ** 0.7)
     huts_pos = [tuple(map(int, h.split(","))) for h in s["huts"]]
     s["camps"] = []
     for need_s, need_c in ((5, 4), (4, 3), (3, 2), (2, 1)):   # лагеря варваров — подальше от стартов

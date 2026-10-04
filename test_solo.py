@@ -25,7 +25,21 @@ meta = call("/api/meta")
 assert "techs" in meta and "units" in meta and meta["units"]["archer"]["range"] == 2, "meta range"
 print("meta ok:", len(meta["techs"]), "techs")
 
-r = call("/api/newgame", {"name": "Тестер", "ais": 2, "difficulty": "easy"})
+for size, (ew, eh) in (("large", (28, 18)), ("standard", (20, 14))):
+    rr = call("/api/newgame", {"name": "Тестер", "ais": 2, "size": size})["state"]
+    assert (rr["w"], rr["h"]) == (ew, eh), (size, rr["w"], rr["h"])
+    assert len(rr["tiles"]) == eh and len(rr["tiles"][0]) == ew
+    call("/api/act", {"action": "end"})          # ход на большой карте не ломается
+    st = call("/api/state")
+    assert st["turn"] == 2 and (st["w"], st["h"]) == (ew, eh)
+try:
+    call("/api/newgame", {"size": "huge"})
+    raise AssertionError("bad size accepted")
+except RuntimeError:
+    pass
+print("map sizes ok")
+
+r = call("/api/newgame", {"name": "Тестер", "ais": 2, "difficulty": "easy", "size": "small"})
 S = r["state"]
 assert S["turn"] == 1 and len(S["players"]) == 3
 mine_units = [u for u in S["units"] if u["owner"] == S["you"]]
