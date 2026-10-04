@@ -45,7 +45,7 @@ def _passable(s, k, x, y, military, owners):
     return True
 
 
-def _reach(s, k, start, military, owners, maxd=30):
+def _reach(s, k, start, military, owners, maxd=30, avoid=()):
     """{клетка: (расстояние, первый шаг)} для всех достижимых клеток."""
     info = {start: (0, None)}
     q = deque([start])
@@ -56,7 +56,7 @@ def _reach(s, k, start, military, owners, maxd=30):
             continue
         for _, (dx, dy) in DIRS:
             n = (cur[0] + dx, cur[1] + dy)
-            if n in info or not _passable(s, k, n[0], n[1], military, owners):
+            if n in info or n in avoid or not _passable(s, k, n[0], n[1], military, owners):
                 continue
             info[n] = (d + 1, n if first is None else first)
             q.append(n)
@@ -131,14 +131,38 @@ def _site_score(s, x, y):
     return sc
 
 
+def _join_nearest(s, k, uid):
+    """Бесполезный поселенец идёт в ближайший свой город и вливается в него."""
+    u = s["units"].get(uid)
+    mine = [c for c in s["cities"].values() if c["owner"] == k]
+    if not u or not mine:
+        return False
+    c = min(mine, key=lambda c: E.dist((c["x"], c["y"]), (u["x"], u["y"])))
+    if (c["x"], c["y"]) == (u["x"], u["y"]):
+        try:
+            E.join_city(s, k, uid)
+            return True
+        except E.GameError:
+            return False
+    _go(s, k, uid, lambda x, y: (x, y) == (c["x"], c["y"]), False)
+    u = s["units"].get(uid)
+    if u and (u["x"], u["y"]) == (c["x"], c["y"]):
+        try:
+            E.join_city(s, k, uid)
+        except E.GameError:
+            pass
+    return True
+
+
 def do_settler(s, k, uid):
-    for _ in range(4):
+    blocked = set()                                  # первые шаги, в которые не пройти (чужие юниты и т.п.)
+    for _ in range(8):
         u = s["units"].get(uid)
-        if not u:
+        if not u or u["mv"] <= 0:
             return
         pos = (u["x"], u["y"])
         owners = E.tile_owners(s)
-        info = _reach(s, k, pos, False, owners, 9)
+        info = _reach(s, k, pos, False, owners, 9, blocked)
         best = None
         for t, (d, first) in info.items():
             if _site_ok(s, k, t[0], t[1], owners):
@@ -148,8 +172,10 @@ def do_settler(s, k, uid):
                 if best is None or sc > best[0]:
                     best = (sc, t, first)
         if best is None:
-            if "sailing" in s["players"][k]["techs"]:
+            if "sailing" in s["players"][k]["techs"] and _overseas_sites(s, k, owners):
                 return                               # ждёт галеру на берегу
+            if _join_nearest(s, k, uid):             # мест нет — вливается в город
+                return
             name, _ = random.choice(DIRS)
             try:
                 E.move_unit(s, k, uid, name)
@@ -164,7 +190,7 @@ def do_settler(s, k, uid):
                 pass
             return
         if not _step(s, k, uid, first):
-            return
+            blocked.add(first)                       # пробуем обойти другим путём
 
 
 # ---------- флот: перевозка поселенцев на другие острова ----------
@@ -845,7 +871,7 @@ def _choose(s, k, c, ctx):
     want = min(7, 3 + s["turn"] // 8 + EXPAND[E.difficulty(s)])
     ferry_ready = ctx["galleys"] + prod.get("galley", 0) > 0
     if ("unit:settler" in items and ctx["sites"] > 0 and (ctx["land_sites"] > 0 or ferry_ready)
-            and s["turn"] < 50
+            and s["turn"] < 50 and ctx["settlers"] + prod.get("settler", 0) < ctx["sites"]
             and ctx["cities"] + ctx["settlers"] + prod.get("settler", 0) < want):
         return "unit:settler", "settler"
     if "unit:worker" in items and ctx["workers"] + prod.get("worker", 0) < ctx["cities"]:

@@ -171,8 +171,14 @@ def setup(app, *, token, load, save, run_turn, bot=None, solo=False):
                 msg = E.move_unit(s, uid, i, d)
             elif a == "found":
                 msg = E.found_city(s, uid, str(body["unit"]))
+            elif a == "join":
+                msg = E.join_city(s, uid, str(body["unit"]))
             elif a == "build":
                 msg = E.set_build(s, uid, str(body["city"]), str(body["item"]))
+            elif a == "queue":
+                msg = E.queue_add(s, uid, str(body["city"]), str(body["item"]))
+            elif a == "qclear":
+                msg = E.queue_clear(s, uid, str(body["city"]))
             elif a == "buy":
                 msg = E.buy(s, uid, str(body["city"]))
             elif a == "research":

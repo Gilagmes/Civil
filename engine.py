@@ -3,7 +3,7 @@
 import random
 
 VER = 2                # версия формата сохранений
-GAME_VERSION = "3.4"   # версия игры (README/CHANGELOG)
+GAME_VERSION = "3.6"   # версия игры (README/CHANGELOG)
 W, H = 14, 10          # размер карты
 MAX_PLAYERS = 6
 MAX_TURNS = 60         # после этого хода побеждает лидер по очкам
@@ -644,6 +644,23 @@ def found_city(s, owner, uid):
     return f"Основан город {name}!" + (" Это ваша столица." if capital else "")
 
 
+def join_city(s, owner, uid):
+    """Поселенец вливается в свой город (+1 население). Возвращает сообщение."""
+    u = own_unit(s, owner, uid)
+    if u["type"] != "settler":
+        raise GameError("Вливаться в город могут только поселенцы")
+    c = next((c for c in s["cities"].values()
+              if c["owner"] == owner and (c["x"], c["y"]) == (u["x"], u["y"])), None)
+    if not c:
+        raise GameError("Встаньте в свой город")
+    if c["pop"] >= housing(s, c):
+        raise GameError("В городе нет жилья — постройте амбар/здания")
+    c["pop"] += 1
+    del s["units"][uid]
+    refresh(s, owner)
+    return f"Поселенец влился в {c['name']} (+1 👥)"
+
+
 def available_items(s, owner, c):
     techs = s["players"][owner]["techs"]
     items = []
@@ -672,6 +689,44 @@ def set_build(s, owner, cid, item):
         raise GameError("Это сейчас нельзя построить")
     c["build"] = item
     return "Приказ принят"
+
+
+QUEUE_MAX = 5
+
+
+def queue_add(s, owner, cid, item):
+    """Добавляет объект в очередь производства города (если ничего не строится — начинает его)."""
+    c = own_city(s, owner, cid)
+    if item not in [i[0] for i in available_items(s, owner, c)]:
+        raise GameError("Это сейчас нельзя построить")
+    if not c["build"]:
+        c["build"] = item
+        return "Приказ принят"
+    q = c.setdefault("queue", [])
+    if len(q) >= QUEUE_MAX:
+        raise GameError(f"Очередь полна (максимум {QUEUE_MAX})")
+    if item.startswith(("bld:", "wnd:")) and (item == c["build"] or item in q):
+        raise GameError("Это уже в очереди")
+    q.append(item)
+    return f"В очередь добавлено ({len(q)}/{QUEUE_MAX})"
+
+
+def queue_clear(s, owner, cid):
+    c = own_city(s, owner, cid)
+    c["queue"] = []
+    return "Очередь очищена"
+
+
+def _next_in_queue(s, owner, c):
+    """Берёт из очереди первый ещё доступный пункт (недоступные — пропускает)."""
+    q = c.get("queue") or []
+    ok = {i[0] for i in available_items(s, owner, c)}
+    while q:
+        it = q.pop(0)
+        if it in ok and not (it.startswith("wnd:") and it.split(":")[1] in s["wonders"]):
+            c["build"] = it
+            return it
+    return None
 
 
 def buy(s, owner, cid):
@@ -1099,7 +1154,7 @@ def _attack(s, owner, uid, u, x, y, enemy_units, c):
         _news(s, old, f"🏴 Город {city['name']} захвачен игроком {aname}!")
         city["owner"] = owner
         city["pop"] = max(1, city["pop"] - 1)
-        city["build"], city["prod"] = None, 0
+        city["build"], city["prod"], city["queue"] = None, 0, []
         city["capital"] = False
         msg += f"🏴 Захвачен город {city['name']}!"
         refresh(s, old)
@@ -1676,7 +1731,10 @@ def process_turn(s):
         d = item_data(b)
         if kind == "wnd" and key in s["wonders"]:
             c["build"] = None
-            _news(s, owner, f"🏛 {d['name'].split(' (')[0]} уже построено другой цивилизацией — выберите новое производство в {c['name']}")
+            if _next_in_queue(s, owner, c):
+                _news(s, owner, f"🏛 {d['name'].split(' (')[0]} уже построено другой цивилизацией — {c['name']} берёт следующее из очереди")
+            else:
+                _news(s, owner, f"🏛 {d['name'].split(' (')[0]} уже построено другой цивилизацией — выберите новое производство в {c['name']}")
         elif c["prod"] >= d["cost"] and not (key == "settler" and c["pop"] < 2):
             c["prod"] -= d["cost"]
             c["build"] = None
@@ -1692,6 +1750,9 @@ def process_turn(s):
                 s["wonders"][key] = cid
                 pub.append(f"🏛 {s['players'][owner]['name']} построил чудо света «{nm}» в городе {c['name']}!")
             _news(s, owner, f"🔨 {c['name']}: готово — {nm}")
+            nxt = _next_in_queue(s, owner, c)
+            if nxt:
+                _news(s, owner, f"📋 {c['name']}: из очереди — {item_data(nxt)['name'].split(' (')[0]}")
     for rid, r in list(s.get("routes", {}).items()):        # торговые пути
         owner = r["owner"]
         a, b = s["cities"].get(r["a"]), s["cities"].get(r["b"])
@@ -1885,7 +1946,7 @@ def view(s, k):
              "owner": c["owner"], "pop": c["pop"], "capital": c["capital"],
              "culture": c.get("culture", 0), "religion": c.get("religion")}
         if c["owner"] == k:
-            d.update(build=c["build"], prod=c["prod"], buildings=c["buildings"],
+            d.update(build=c["build"], queue=list(c.get("queue") or []), prod=c["prod"], buildings=c["buildings"],
                      wonders=c["wonders"], food=c["food"], yields=city_yields(s, c),
                      buy=buy_price(s, c), struck=c.get("struck") == s["turn"],
                      strength=city_strength(s, c), housing=housing(s, c))

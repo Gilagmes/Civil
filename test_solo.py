@@ -1,5 +1,6 @@
 """Скрипт-прогон solo-режима через HTTP: проверяет весь основной поток игры."""
 import json
+import os
 import urllib.request
 
 BASE = "http://127.0.0.1:8080"
@@ -39,7 +40,7 @@ for key in ("roads", "cstates", "rel", "offers", "religions", "pub", "win_reason
     assert key in S, f"view lacks {key}"
 print("view keys ok")
 
-save = json.load(open("solo_save.json", encoding="utf-8"))
+save = json.load(open(os.getenv("SOLO_SAVE", "solo_save.json"), encoding="utf-8"))
 assert len(save.get("camps", [])) >= 2, save.get("camps")
 print("camps placed:", save["camps"])
 
@@ -59,6 +60,22 @@ r = act("build", city=city["id"], item="unit:warrior")
 S = r["state"]
 assert next(c for c in S["cities"] if c["id"] == city["id"])["build"] == "unit:warrior"
 print("research+build ok")
+
+# очередь производства
+r = act("queue", city=city["id"], item="unit:worker")
+r = act("queue", city=city["id"], item="unit:scout")
+S = r["state"]
+cq = next(c for c in S["cities"] if c["id"] == city["id"])
+assert cq["queue"] == ["unit:worker", "unit:scout"], cq["queue"]
+try:
+    act("queue", city=city["id"], item="bld:nonexistent")
+    raise AssertionError("queue accepted junk")
+except RuntimeError:
+    pass
+r = act("qclear", city=city["id"])
+assert next(c for c in r["state"]["cities"] if c["id"] == city["id"])["queue"] == []
+act("queue", city=city["id"], item="unit:worker")
+print("queue ok")
 
 # рабочий: ферма если на равнине, иначе просто проверка вежливого ответа
 t = S["tiles"][worker["y"]][worker["x"]]
